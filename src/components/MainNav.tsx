@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ChartLineUp, Lock, Settings } from "lucide-react";
+import { TrendingUp, Lock, Settings } from "lucide-react";
 import { Button } from "./ui/button";
 
 export function MainNav() {
@@ -24,7 +24,7 @@ export function MainNav() {
     >
       <nav className="container mx-auto flex items-center justify-between h-16 px-4">
         <Link to="/" className="flex items-center space-x-2 text-lg font-semibold">
-          <ChartLineUp className="h-6 w-6" />
+          <TrendingUp className="h-6 w-6" />
           <span>Future Trade Signals</span>
         </Link>
         <div className="flex items-center space-x-4">
