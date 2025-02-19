@@ -1,8 +1,8 @@
 
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 
 interface SignalCardProps {
   signal: {
@@ -14,7 +14,8 @@ interface SignalCardProps {
     entryPrice: string;
     targetPrice: string;
     stopLoss: string;
-    createdAt?: Date;
+    createdAt: Date;
+    displayLocation: "Main" | "Premium" | "Both";
   };
 }
 
@@ -22,7 +23,7 @@ export function SignalCard({ signal }: SignalCardProps) {
   return (
     <Card className="h-full">
       <CardHeader className="space-y-1">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-2">
           <Badge
             variant="outline"
             className={signal.signalType === "Buy" ? "border-signal-buy text-signal-buy" : "border-signal-sell text-signal-sell"}
@@ -36,9 +37,14 @@ export function SignalCard({ signal }: SignalCardProps) {
               {signal.signalType}
             </span>
           </Badge>
+          <span className="text-xs text-muted-foreground">
+            {format(new Date(signal.createdAt), "MMM d, HH:mm")}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-lg truncate">{signal.title}</h3>
           <Badge variant="secondary">{signal.marketType}</Badge>
         </div>
-        <h3 className="font-semibold text-lg truncate">{signal.title}</h3>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground line-clamp-2">{signal.description}</p>
@@ -61,11 +67,6 @@ export function SignalCard({ signal }: SignalCardProps) {
           </div>
         </div>
       </CardContent>
-      {signal.createdAt && (
-        <CardFooter className="text-xs text-muted-foreground">
-          Posted {formatDistanceToNow(new Date(signal.createdAt), { addSuffix: true })}
-        </CardFooter>
-      )}
     </Card>
   );
 }
