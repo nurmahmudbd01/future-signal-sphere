@@ -1,7 +1,7 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, Pencil, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import { SignalCard } from "@/components/SignalCard";
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -44,11 +45,25 @@ const formSchema = z.object({
   displayLocation: z.enum(["Main", "Premium", "Both"]),
 });
 
+type Signal = z.infer<typeof formSchema> & {
+  createdAt: Date;
+};
+
 export default function Admin() {
   const [open, setOpen] = useState(false);
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [editingSignal, setEditingSignal] = useState<Signal | null>(null);
+
+  useEffect(() => {
+    const storedSignals = localStorage.getItem('signals');
+    if (storedSignals) {
+      setSignals(JSON.parse(storedSignals));
+    }
+  }, []);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
+    defaultValues: editingSignal || {
       title: "",
       description: "",
       signalType: "Buy",
@@ -62,18 +77,59 @@ export default function Admin() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    // TODO: Implement API call to create signal
-    console.log(values);
-    toast.success("Signal created successfully!");
+    const newSignal = {
+      ...values,
+      createdAt: new Date(),
+    };
+
+    let updatedSignals;
+    if (editingSignal) {
+      updatedSignals = signals.map(signal => 
+        signal === editingSignal ? { ...newSignal } : signal
+      );
+      toast.success("Signal updated successfully!");
+    } else {
+      updatedSignals = [...signals, newSignal];
+      toast.success("Signal created successfully!");
+    }
+
+    setSignals(updatedSignals);
+    localStorage.setItem('signals', JSON.stringify(updatedSignals));
     setOpen(false);
     form.reset();
+    setEditingSignal(null);
+
+    // Trigger storage event for other tabs
+    window.dispatchEvent(new Event('storage'));
   }
+
+  const handleEdit = (signal: Signal) => {
+    setEditingSignal(signal);
+    form.reset(signal);
+    setOpen(true);
+  };
+
+  const handleDelete = (signalToDelete: Signal) => {
+    const updatedSignals = signals.filter(signal => signal !== signalToDelete);
+    setSignals(updatedSignals);
+    localStorage.setItem('signals', JSON.stringify(updatedSignals));
+    toast.success("Signal deleted successfully!");
+    
+    // Trigger storage event for other tabs
+    window.dispatchEvent(new Event('storage'));
+  };
 
   return (
     <div className="container py-16">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Signal Management</h1>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(newOpen) => {
+          setOpen(newOpen);
+          if (!newOpen) {
+            setEditingSignal(null);
+            form.reset();
+          }
+        }}>
           <DialogTrigger asChild>
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" />
@@ -82,9 +138,9 @@ export default function Admin() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create New Signal</DialogTitle>
+              <DialogTitle>{editingSignal ? "Edit Signal" : "Create New Signal"}</DialogTitle>
               <DialogDescription>
-                Fill in the details below to create a new trading signal.
+                Fill in the details below to {editingSignal ? "update the" : "create a new"} trading signal.
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
@@ -251,8 +307,35 @@ export default function Admin() {
           </DialogContent>
         </Dialog>
       </div>
-      <div className="text-center py-12 text-muted-foreground">
-        No signals created yet.
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {signals.length > 0 ? (
+          signals.map((signal, index) => (
+            <div key={index} className="relative group">
+              <SignalCard signal={signal} />
+              <div className="absolute top-2 right-2 hidden group-hover:flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  onClick={() => handleEdit(signal)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  onClick={() => handleDelete(signal)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-12 col-span-full text-muted-foreground">
+            No signals created yet.
+          </div>
+        )}
       </div>
     </div>
   );

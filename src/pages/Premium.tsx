@@ -1,38 +1,44 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignalCard } from "@/components/SignalCard";
 
-// Temporary test data
-const mockSignals = [
-  {
-    title: "BTC Long Opportunity",
-    description: "Strong support level reached, expecting a bounce to key resistance.",
-    signalType: "Buy" as const,
-    marketType: "Future" as const,
-    blockchainType: "Bitcoin" as const,
-    entryPrice: "42000",
-    targetPrice: "45000",
-    stopLoss: "41000",
-    createdAt: new Date(),
-    displayLocation: "Premium",
-  },
-  {
-    title: "ETH Short Setup",
-    description: "Double top formation with bearish divergence on RSI.",
-    signalType: "Sell" as const,
-    marketType: "Future" as const,
-    blockchainType: "Ethereum" as const,
-    entryPrice: "2200",
-    targetPrice: "2000",
-    stopLoss: "2300",
-    createdAt: new Date(),
-    displayLocation: "Premium",
-  },
-];
+type Signal = {
+  title: string;
+  description: string;
+  signalType: "Buy" | "Sell";
+  marketType: "Future" | "Spot";
+  blockchainType: "Bitcoin" | "Ethereum" | "Solana" | "Other";
+  entryPrice: string;
+  targetPrice: string;
+  stopLoss: string;
+  createdAt: Date;
+  displayLocation: "Main" | "Premium" | "Both";
+};
 
 export default function Premium() {
-  const [signals] = useState(mockSignals);
+  const [signals, setSignals] = useState<Signal[]>([]);
+
+  useEffect(() => {
+    // Here we'll filter signals that should appear in premium page
+    const loadSignals = () => {
+      // For now, let's use localstorage. Later this would be a backend API call
+      const storedSignals = localStorage.getItem('signals');
+      if (storedSignals) {
+        const allSignals: Signal[] = JSON.parse(storedSignals);
+        // Filter signals that should appear in premium page
+        const premiumSignals = allSignals.filter(
+          signal => signal.displayLocation === "Premium" || signal.displayLocation === "Both"
+        );
+        setSignals(premiumSignals);
+      }
+    };
+
+    loadSignals();
+    // Listen for storage changes to update signals in real-time
+    window.addEventListener('storage', loadSignals);
+    return () => window.removeEventListener('storage', loadSignals);
+  }, []);
 
   const futureSignals = signals.filter(signal => signal.marketType === "Future");
   const spotSignals = signals.filter(signal => signal.marketType === "Spot");
