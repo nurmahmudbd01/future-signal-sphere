@@ -1,12 +1,43 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowRight, TrendingUp, Activity, Target } from "lucide-react";
+import { SignalCard } from "@/components/SignalCard";
+import { Signal } from "@/types/signal";
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState("future");
+  const [signals, setSignals] = useState<Signal[]>([]);
+
+  useEffect(() => {
+    const loadSignals = () => {
+      const storedSignals = localStorage.getItem('signals');
+      if (storedSignals) {
+        const allSignals: Signal[] = JSON.parse(storedSignals);
+        // Filter signals for main page
+        const mainSignals = allSignals.filter(
+          signal => (signal.displayLocation === "Main" || signal.displayLocation === "Both") && 
+                   signal.approved
+        );
+        // Sort signals: active first, then closed
+        const sortedSignals = mainSignals.sort((a, b) => {
+          if ((a.status || 'pending') === (b.status || 'pending')) {
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          }
+          return (a.status || 'pending') === 'active' ? -1 : 1;
+        });
+        setSignals(sortedSignals);
+      }
+    };
+
+    loadSignals();
+    window.addEventListener('storage', loadSignals);
+    return () => window.removeEventListener('storage', loadSignals);
+  }, []);
+
+  const futureSignals = signals.filter(signal => signal.marketType === "Future");
+  const spotSignals = signals.filter(signal => signal.marketType === "Spot");
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -66,18 +97,28 @@ export default function Home() {
             </div>
             <TabsContent value="future">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Signal cards will go here */}
-                <div className="text-center py-12 col-span-full text-muted-foreground">
-                  No signals available at the moment.
-                </div>
+                {futureSignals.length > 0 ? (
+                  futureSignals.map((signal) => (
+                    <SignalCard key={signal.id} signal={signal} />
+                  ))
+                ) : (
+                  <div className="text-center py-12 col-span-full text-muted-foreground">
+                    No signals available at the moment.
+                  </div>
+                )}
               </div>
             </TabsContent>
             <TabsContent value="spot">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Signal cards will go here */}
-                <div className="text-center py-12 col-span-full text-muted-foreground">
-                  No signals available at the moment.
-                </div>
+                {spotSignals.length > 0 ? (
+                  spotSignals.map((signal) => (
+                    <SignalCard key={signal.id} signal={signal} />
+                  ))
+                ) : (
+                  <div className="text-center py-12 col-span-full text-muted-foreground">
+                    No signals available at the moment.
+                  </div>
+                )}
               </div>
             </TabsContent>
           </Tabs>

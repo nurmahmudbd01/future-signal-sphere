@@ -1,7 +1,6 @@
-
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Clock } from "lucide-react";
+import { TrendingUp, TrendingDown, Clock, CheckCircle, XCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,7 +75,21 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete }: SignalCardProp
 
   return (
     <>
-      <Card className={`h-full ${status === 'closed' ? (isProfitable ? 'border-green-500' : 'border-red-500') : ''}`}>
+      <Card className={`h-full relative ${status === 'closed' ? (isProfitable ? 'border-green-500' : 'border-red-500') : ''}`}>
+        {status === 'closed' && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-[1px] rounded-lg z-10">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-background/80 shadow-sm border">
+              {isProfitable ? (
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              ) : (
+                <XCircle className="h-5 w-5 text-red-500" />
+              )}
+              <span className={`font-medium ${isProfitable ? 'text-green-600' : 'text-red-600'}`}>
+                {signal.profitLoss?.percentage}% {isProfitable ? 'Profit' : 'Loss'}
+              </span>
+            </div>
+          </div>
+        )}
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">

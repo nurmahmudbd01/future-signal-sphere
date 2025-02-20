@@ -8,24 +8,27 @@ export default function Premium() {
   const [signals, setSignals] = useState<Signal[]>([]);
 
   useEffect(() => {
-    // Here we'll filter signals that should appear in premium page
     const loadSignals = () => {
-      // For now, let's use localstorage. Later this would be a backend API call
       const storedSignals = localStorage.getItem('signals');
       if (storedSignals) {
         const allSignals: Signal[] = JSON.parse(storedSignals);
-        // Filter signals that should appear in premium page and are approved
+        // Filter signals for premium page
         const premiumSignals = allSignals.filter(
           signal => (signal.displayLocation === "Premium" || signal.displayLocation === "Both") &&
-                   signal.approved &&
-                   signal.status !== "pending"
+                   signal.approved
         );
-        setSignals(premiumSignals);
+        // Sort signals: active first, then closed
+        const sortedSignals = premiumSignals.sort((a, b) => {
+          if ((a.status || 'pending') === (b.status || 'pending')) {
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          }
+          return (a.status || 'pending') === 'active' ? -1 : 1;
+        });
+        setSignals(sortedSignals);
       }
     };
 
     loadSignals();
-    // Listen for storage changes to update signals in real-time
     window.addEventListener('storage', loadSignals);
     return () => window.removeEventListener('storage', loadSignals);
   }, []);
