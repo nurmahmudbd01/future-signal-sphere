@@ -18,14 +18,17 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete, onClose }: Signa
   const isProfitable = signal.profitLoss && signal.profitLoss.percentage > 0;
   const isLoss = signal.profitLoss && signal.profitLoss.percentage < 0;
   
+  // Ensure status has a valid value, defaulting to 'pending' if undefined
+  const status = signal.status || 'pending';
+  
   const statusColor = {
     pending: "bg-yellow-100 text-yellow-800",
     active: "bg-blue-100 text-blue-800",
     closed: isProfitable ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
-  }[signal.status];
+  }[status];
 
   return (
-    <Card className={`h-full ${signal.status === 'closed' ? (isProfitable ? 'border-green-500' : 'border-red-500') : ''}`}>
+    <Card className={`h-full ${status === 'closed' ? (isProfitable ? 'border-green-500' : 'border-red-500') : ''}`}>
       <CardHeader className="space-y-1">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -43,7 +46,7 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete, onClose }: Signa
               </span>
             </Badge>
             <Badge className={statusColor}>
-              {signal.status.charAt(0).toUpperCase() + signal.status.slice(1)}
+              {status.charAt(0).toUpperCase() + status.slice(1)}
             </Badge>
           </div>
           <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -78,7 +81,7 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete, onClose }: Signa
             <span className="text-muted-foreground">Stop Loss:</span>
             <span className="font-medium text-signal-sell">${signal.stopLoss}</span>
           </div>
-          {signal.status === 'closed' && signal.profitLoss && (
+          {status === 'closed' && signal.profitLoss && (
             <>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Profit/Loss:</span>
