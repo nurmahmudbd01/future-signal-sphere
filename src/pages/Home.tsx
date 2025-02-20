@@ -18,20 +18,23 @@ export default function Home() {
         // Filter signals for main page
         const mainSignals = allSignals.filter(
           signal => (signal.displayLocation === "Main" || signal.displayLocation === "Both") && 
-                   signal.approved
+                   signal.approved === true
         );
-        // Sort signals: active first, then closed
+        // Sort signals: active and pending first (by date), then closed (by date)
         const sortedSignals = mainSignals.sort((a, b) => {
-          if ((a.status || 'pending') === (b.status || 'pending')) {
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          // First, separate active/pending from closed
+          if ((a.status === 'closed') !== (b.status === 'closed')) {
+            return a.status === 'closed' ? 1 : -1;
           }
-          return (a.status || 'pending') === 'active' ? -1 : 1;
+          // Then sort by date within each group (newest first)
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
         setSignals(sortedSignals);
       }
     };
 
     loadSignals();
+    // Initial load
     window.addEventListener('storage', loadSignals);
     return () => window.removeEventListener('storage', loadSignals);
   }, []);
