@@ -32,6 +32,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import { SignalCard } from "@/components/SignalCard";
+import { generateSignalId } from "@/utils/signalUtils";
+import { Signal } from "@/types/signal";
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -44,10 +46,6 @@ const formSchema = z.object({
   stopLoss: z.string().min(1, "Stop loss is required"),
   displayLocation: z.enum(["Main", "Premium", "Both"]),
 });
-
-type Signal = z.infer<typeof formSchema> & {
-  createdAt: Date;
-};
 
 export default function Admin() {
   const [open, setOpen] = useState(false);
@@ -77,15 +75,18 @@ export default function Admin() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const newSignal = {
+    const newSignal: Signal = {
       ...values,
-      createdAt: new Date(),
+      id: editingSignal?.id || generateSignalId(),
+      createdAt: editingSignal?.createdAt || new Date(),
+      status: editingSignal?.status || "pending",
+      approved: editingSignal?.approved || false,
     };
 
     let updatedSignals;
     if (editingSignal) {
       updatedSignals = signals.map(signal => 
-        signal === editingSignal ? { ...newSignal } : signal
+        signal.id === editingSignal.id ? newSignal : signal
       );
       toast.success("Signal updated successfully!");
     } else {
@@ -110,7 +111,7 @@ export default function Admin() {
   };
 
   const handleDelete = (signalToDelete: Signal) => {
-    const updatedSignals = signals.filter(signal => signal !== signalToDelete);
+    const updatedSignals = signals.filter(signal => signal.id !== signalToDelete.id);
     setSignals(updatedSignals);
     localStorage.setItem('signals', JSON.stringify(updatedSignals));
     toast.success("Signal deleted successfully!");
@@ -310,9 +311,9 @@ export default function Admin() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {signals.length > 0 ? (
-          signals.map((signal, index) => (
-            <div key={index} className="relative group">
-              <SignalCard signal={signal} />
+          signals.map((signal) => (
+            <div key={signal.id} className="relative group">
+              <SignalCard signal={signal} isAdmin />
               <div className="absolute top-2 right-2 hidden group-hover:flex gap-2">
                 <Button
                   variant="secondary"

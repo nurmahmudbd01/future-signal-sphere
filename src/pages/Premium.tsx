@@ -2,19 +2,7 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignalCard } from "@/components/SignalCard";
-
-type Signal = {
-  title: string;
-  description: string;
-  signalType: "Buy" | "Sell";
-  marketType: "Future" | "Spot";
-  blockchainType: "Bitcoin" | "Ethereum" | "Solana" | "Other";
-  entryPrice: string;
-  targetPrice: string;
-  stopLoss: string;
-  createdAt: Date;
-  displayLocation: "Main" | "Premium" | "Both";
-};
+import { Signal } from "@/types/signal";
 
 export default function Premium() {
   const [signals, setSignals] = useState<Signal[]>([]);
@@ -26,9 +14,11 @@ export default function Premium() {
       const storedSignals = localStorage.getItem('signals');
       if (storedSignals) {
         const allSignals: Signal[] = JSON.parse(storedSignals);
-        // Filter signals that should appear in premium page
+        // Filter signals that should appear in premium page and are approved
         const premiumSignals = allSignals.filter(
-          signal => signal.displayLocation === "Premium" || signal.displayLocation === "Both"
+          signal => (signal.displayLocation === "Premium" || signal.displayLocation === "Both") &&
+                   signal.approved &&
+                   signal.status !== "pending"
         );
         setSignals(premiumSignals);
       }
@@ -56,8 +46,8 @@ export default function Premium() {
         <TabsContent value="future">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {futureSignals.length > 0 ? (
-              futureSignals.map((signal, index) => (
-                <SignalCard key={index} signal={signal} />
+              futureSignals.map((signal) => (
+                <SignalCard key={signal.id} signal={signal} />
               ))
             ) : (
               <div className="text-center py-12 col-span-full text-muted-foreground">
@@ -69,8 +59,8 @@ export default function Premium() {
         <TabsContent value="spot">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {spotSignals.length > 0 ? (
-              spotSignals.map((signal, index) => (
-                <SignalCard key={index} signal={signal} />
+              spotSignals.map((signal) => (
+                <SignalCard key={signal.id} signal={signal} />
               ))
             ) : (
               <div className="text-center py-12 col-span-full text-muted-foreground">
