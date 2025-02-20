@@ -47,6 +47,8 @@ const formSchema = z.object({
   displayLocation: z.enum(["Main", "Premium", "Both"]),
 });
 
+type FormValues = z.infer<typeof formSchema>;
+
 export default function Admin() {
   const [open, setOpen] = useState(false);
   const [signals, setSignals] = useState<Signal[]>([]);
@@ -59,9 +61,19 @@ export default function Admin() {
     }
   }, []);
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: editingSignal || {
+    defaultValues: editingSignal ? {
+      title: editingSignal.title,
+      description: editingSignal.description,
+      signalType: editingSignal.signalType,
+      marketType: editingSignal.marketType,
+      blockchainType: editingSignal.blockchainType,
+      entryPrice: editingSignal.entryPrice,
+      targetPrice: editingSignal.targetPrice,
+      stopLoss: editingSignal.stopLoss,
+      displayLocation: editingSignal.displayLocation,
+    } : {
       title: "",
       description: "",
       signalType: "Buy",
@@ -74,13 +86,21 @@ export default function Admin() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: FormValues) {
     const newSignal: Signal = {
-      ...values,
       id: editingSignal?.id || generateSignalId(),
       createdAt: editingSignal?.createdAt || new Date(),
       status: editingSignal?.status || "pending",
       approved: editingSignal?.approved || false,
+      title: values.title,
+      description: values.description,
+      signalType: values.signalType,
+      marketType: values.marketType,
+      blockchainType: values.blockchainType,
+      entryPrice: values.entryPrice,
+      targetPrice: values.targetPrice,
+      stopLoss: values.stopLoss,
+      displayLocation: values.displayLocation,
     };
 
     let updatedSignals;
