@@ -12,29 +12,47 @@ export default function Home() {
 
   useEffect(() => {
     const loadSignals = () => {
-      const storedSignals = localStorage.getItem('signals');
-      if (storedSignals) {
-        const allSignals: Signal[] = JSON.parse(storedSignals);
-        // Filter signals for main page
-        const mainSignals = allSignals.filter(
-          signal => (signal.displayLocation === "Main" || signal.displayLocation === "Both") && 
-                   signal.approved === true
-        );
-        // Sort signals: active and pending first (by date), then closed (by date)
-        const sortedSignals = mainSignals.sort((a, b) => {
-          // First, separate active/pending from closed
-          if ((a.status === 'closed') !== (b.status === 'closed')) {
-            return a.status === 'closed' ? 1 : -1;
-          }
-          // Then sort by date within each group (newest first)
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
-        setSignals(sortedSignals);
+      try {
+        const storedSignals = localStorage.getItem('signals');
+        console.log('Stored signals:', storedSignals); // Debug log
+
+        if (storedSignals) {
+          const allSignals: Signal[] = JSON.parse(storedSignals);
+          console.log('All signals:', allSignals); // Debug log
+
+          // Filter signals for main page
+          const mainSignals = allSignals.filter(signal => {
+            const isMainOrBoth = signal.displayLocation === "Main" || signal.displayLocation === "Both";
+            const isApproved = signal.approved === true;
+            return isMainOrBoth && isApproved;
+          });
+
+          console.log('Filtered main signals:', mainSignals); // Debug log
+
+          // Sort signals: active/pending first (newest to oldest), then closed (newest to oldest)
+          const sortedSignals = [...mainSignals].sort((a, b) => {
+            const aStatus = a.status || 'pending';
+            const bStatus = b.status || 'pending';
+            
+            // If one is closed and the other isn't, closed goes last
+            if (aStatus === 'closed' && bStatus !== 'closed') return 1;
+            if (aStatus !== 'closed' && bStatus === 'closed') return -1;
+            
+            // Both are either closed or not closed, sort by date (newest first)
+            const dateA = new Date(a.createdAt).getTime();
+            const dateB = new Date(b.createdAt).getTime();
+            return dateB - dateA;
+          });
+
+          console.log('Sorted signals:', sortedSignals); // Debug log
+          setSignals(sortedSignals);
+        }
+      } catch (error) {
+        console.error('Error loading signals:', error);
       }
     };
 
-    loadSignals();
-    // Initial load
+    loadSignals(); // Initial load
     window.addEventListener('storage', loadSignals);
     return () => window.removeEventListener('storage', loadSignals);
   }, []);

@@ -9,29 +9,47 @@ export default function Premium() {
 
   useEffect(() => {
     const loadSignals = () => {
-      const storedSignals = localStorage.getItem('signals');
-      if (storedSignals) {
-        const allSignals: Signal[] = JSON.parse(storedSignals);
-        // Filter signals for premium page
-        const premiumSignals = allSignals.filter(
-          signal => (signal.displayLocation === "Premium" || signal.displayLocation === "Both") &&
-                   signal.approved === true
-        );
-        // Sort signals: active and pending first (by date), then closed (by date)
-        const sortedSignals = premiumSignals.sort((a, b) => {
-          // First, separate active/pending from closed
-          if ((a.status === 'closed') !== (b.status === 'closed')) {
-            return a.status === 'closed' ? 1 : -1;
-          }
-          // Then sort by date within each group (newest first)
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
-        setSignals(sortedSignals);
+      try {
+        const storedSignals = localStorage.getItem('signals');
+        console.log('Stored signals (Premium):', storedSignals); // Debug log
+
+        if (storedSignals) {
+          const allSignals: Signal[] = JSON.parse(storedSignals);
+          console.log('All signals (Premium):', allSignals); // Debug log
+
+          // Filter signals for premium page
+          const premiumSignals = allSignals.filter(signal => {
+            const isPremiumOrBoth = signal.displayLocation === "Premium" || signal.displayLocation === "Both";
+            const isApproved = signal.approved === true;
+            return isPremiumOrBoth && isApproved;
+          });
+
+          console.log('Filtered premium signals:', premiumSignals); // Debug log
+
+          // Sort signals: active/pending first (newest to oldest), then closed (newest to oldest)
+          const sortedSignals = [...premiumSignals].sort((a, b) => {
+            const aStatus = a.status || 'pending';
+            const bStatus = b.status || 'pending';
+            
+            // If one is closed and the other isn't, closed goes last
+            if (aStatus === 'closed' && bStatus !== 'closed') return 1;
+            if (aStatus !== 'closed' && bStatus === 'closed') return -1;
+            
+            // Both are either closed or not closed, sort by date (newest first)
+            const dateA = new Date(a.createdAt).getTime();
+            const dateB = new Date(b.createdAt).getTime();
+            return dateB - dateA;
+          });
+
+          console.log('Sorted signals (Premium):', sortedSignals); // Debug log
+          setSignals(sortedSignals);
+        }
+      } catch (error) {
+        console.error('Error loading signals:', error);
       }
     };
 
-    loadSignals();
-    // Initial load
+    loadSignals(); // Initial load
     window.addEventListener('storage', loadSignals);
     return () => window.removeEventListener('storage', loadSignals);
   }, []);
