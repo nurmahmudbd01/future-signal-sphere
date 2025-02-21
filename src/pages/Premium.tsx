@@ -1,8 +1,8 @@
-
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignalCard } from "@/components/SignalCard";
 import { Signal } from "@/types/signal";
+import { getAllStoredSignals } from "@/utils/signalUtils";
 
 export default function Premium() {
   const [signals, setSignals] = useState<Signal[]>([]);
@@ -10,46 +10,36 @@ export default function Premium() {
   useEffect(() => {
     const loadSignals = () => {
       try {
-        const storedSignals = localStorage.getItem('signals');
-        console.log('Stored signals (Premium):', storedSignals); // Debug log
+        const allSignals = getAllStoredSignals();
+        console.log('Retrieved all signals (Premium):', allSignals); // Debug log
 
-        if (storedSignals) {
-          const allSignals: Signal[] = JSON.parse(storedSignals);
-          console.log('All signals (Premium):', allSignals); // Debug log
+        // Filter signals for premium page
+        const premiumSignals = allSignals.filter(signal => {
+          const isPremiumOrBoth = signal.displayLocation === "Premium" || signal.displayLocation === "Both";
+          const isApproved = signal.approved === true;
+          return isPremiumOrBoth && isApproved;
+        });
 
-          // Filter signals for premium page
-          const premiumSignals = allSignals.filter(signal => {
-            const isPremiumOrBoth = signal.displayLocation === "Premium" || signal.displayLocation === "Both";
-            const isApproved = signal.approved === true;
-            return isPremiumOrBoth && isApproved;
-          });
+        console.log('Filtered premium signals:', premiumSignals); // Debug log
 
-          console.log('Filtered premium signals:', premiumSignals); // Debug log
+        // Sort signals
+        const sortedSignals = [...premiumSignals].sort((a, b) => {
+          // Active signals first
+          if (a.status !== 'closed' && b.status === 'closed') return -1;
+          if (a.status === 'closed' && b.status !== 'closed') return 1;
+          
+          // Then by date (newest first)
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
 
-          // Sort signals: active/pending first (newest to oldest), then closed (newest to oldest)
-          const sortedSignals = [...premiumSignals].sort((a, b) => {
-            const aStatus = a.status || 'pending';
-            const bStatus = b.status || 'pending';
-            
-            // If one is closed and the other isn't, closed goes last
-            if (aStatus === 'closed' && bStatus !== 'closed') return 1;
-            if (aStatus !== 'closed' && bStatus === 'closed') return -1;
-            
-            // Both are either closed or not closed, sort by date (newest first)
-            const dateA = new Date(a.createdAt).getTime();
-            const dateB = new Date(b.createdAt).getTime();
-            return dateB - dateA;
-          });
-
-          console.log('Sorted signals (Premium):', sortedSignals); // Debug log
-          setSignals(sortedSignals);
-        }
+        console.log('Sorted premium signals:', sortedSignals); // Debug log
+        setSignals(sortedSignals);
       } catch (error) {
         console.error('Error loading signals:', error);
       }
     };
 
-    loadSignals(); // Initial load
+    loadSignals();
     window.addEventListener('storage', loadSignals);
     return () => window.removeEventListener('storage', loadSignals);
   }, []);
