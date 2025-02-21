@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Clock, CheckCircle, XCircle } from "lucide-react";
@@ -14,7 +15,6 @@ interface SignalCardProps {
   isAdmin?: boolean;
   onEdit?: (signal: Signal) => void;
   onDelete?: (signal: Signal) => void;
-  onClose?: (signal: Signal) => void;
 }
 
 export function SignalCard({ signal, isAdmin, onEdit, onDelete }: SignalCardProps) {
@@ -24,7 +24,7 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete }: SignalCardProp
   const isProfitable = signal.profitLoss && signal.profitLoss.percentage > 0;
   const isLoss = signal.profitLoss && signal.profitLoss.percentage < 0;
   
-  const status = signal.status || 'pending';
+  const status = signal.status || 'active';
   
   const statusColor = {
     pending: "bg-yellow-100 text-yellow-800",
@@ -78,14 +78,17 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete }: SignalCardProp
       <Card className={`h-full relative ${status === 'closed' ? (isProfitable ? 'border-green-500' : 'border-red-500') : ''}`}>
         {status === 'closed' && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-[1px] rounded-lg z-10">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-background/80 shadow-sm border">
+            <div className="flex flex-col items-center gap-2 px-4 py-2 rounded-lg bg-background/80 shadow-sm border">
               {isProfitable ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
+                <CheckCircle className="h-6 w-6 text-green-500" />
               ) : (
-                <XCircle className="h-5 w-5 text-red-500" />
+                <XCircle className="h-6 w-6 text-red-500" />
               )}
               <span className={`font-medium ${isProfitable ? 'text-green-600' : 'text-red-600'}`}>
                 {signal.profitLoss?.percentage}% {isProfitable ? 'Profit' : 'Loss'}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Closed on {signal.profitLoss ? formatDateTime(new Date(signal.profitLoss.closingTime)) : ''}
               </span>
             </div>
           </div>
@@ -158,7 +161,7 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete }: SignalCardProp
                 </div>
               </>
             )}
-            {isAdmin && status === 'pending' && (
+            {isAdmin && status !== 'closed' && (
               <Button 
                 className="w-full mt-4" 
                 variant="outline"
