@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Clock, CheckCircle, XCircle } from "lucide-react";
@@ -20,12 +19,12 @@ interface SignalCardProps {
 export function SignalCard({ signal, isAdmin, onEdit, onDelete }: SignalCardProps) {
   const [isClosingDialogOpen, setIsClosingDialogOpen] = useState(false);
   const [profitLossPercentage, setProfitLossPercentage] = useState("");
-  
+
   const isProfitable = signal.profitLoss && signal.profitLoss.percentage > 0;
   const isLoss = signal.profitLoss && signal.profitLoss.percentage < 0;
-  
+
   const status = signal.status || 'active';
-  
+
   const statusColor = {
     pending: "bg-yellow-100 text-yellow-800",
     active: "bg-blue-100 text-blue-800",
@@ -50,16 +49,13 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete }: SignalCardProp
       },
     };
 
-    // Get all signals from localStorage
     const storedSignals = JSON.parse(localStorage.getItem('signals') || '[]');
     const updatedSignals = storedSignals.map((s: Signal) => 
       s.id === signal.id ? updatedSignal : s
     );
 
-    // Update localStorage
     localStorage.setItem('signals', JSON.stringify(updatedSignals));
 
-    // Store the signal in the organized structure
     const storagePath = getSignalStoragePath(closingTime);
     const storedSignals2 = JSON.parse(localStorage.getItem(storagePath) || '[]');
     storedSignals2.push(updatedSignal);
@@ -69,7 +65,6 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete }: SignalCardProp
     setProfitLossPercentage("");
     toast.success("Signal closed successfully");
     
-    // Trigger storage event for other tabs
     window.dispatchEvent(new Event('storage'));
   };
 
@@ -161,13 +156,13 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete }: SignalCardProp
                 </div>
               </>
             )}
-            {isAdmin && status !== 'closed' && (
+            {isAdmin && (
               <Button 
                 className="w-full mt-4" 
                 variant="outline"
-                onClick={() => setIsClosingDialogOpen(true)}
+                onClick={() => status === 'closed' ? onEdit?.(signal) : setIsClosingDialogOpen(true)}
               >
-                Close Signal
+                {status === 'closed' ? 'Edit Signal' : 'Close Signal'}
               </Button>
             )}
           </div>

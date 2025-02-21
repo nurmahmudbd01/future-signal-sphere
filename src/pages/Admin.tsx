@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Pencil, Trash2 } from "lucide-react";
@@ -34,6 +33,7 @@ import { toast } from "sonner";
 import { SignalCard } from "@/components/SignalCard";
 import { generateSignalId } from "@/utils/signalUtils";
 import { Signal } from "@/types/signal";
+import { SignalSearchAndFilter } from "@/components/SignalSearchAndFilter";
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -53,6 +53,8 @@ export default function Admin() {
   const [open, setOpen] = useState(false);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [editingSignal, setEditingSignal] = useState<Signal | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<SignalStatus | 'all'>('all');
 
   useEffect(() => {
     const loadSignals = () => {
@@ -97,12 +99,19 @@ export default function Admin() {
     const newSignal: Signal = {
       id: editingSignal?.id || generateSignalId(),
       createdAt: editingSignal?.createdAt || new Date(),
-      status: "active", // Set default status to active
-      approved: true, // Set signals as approved by default
-      ...values,
+      status: editingSignal?.status || "active",
+      approved: true,
+      title: values.title,
+      description: values.description,
+      signalType: values.signalType,
+      marketType: values.marketType,
+      blockchainType: values.blockchainType,
+      entryPrice: values.entryPrice,
+      targetPrice: values.targetPrice,
+      stopLoss: values.stopLoss,
+      displayLocation: values.displayLocation,
+      profitLoss: editingSignal?.profitLoss,
     };
-
-    console.log('Creating/Updating signal:', newSignal); // Debug log
 
     let updatedSignals;
     if (editingSignal) {
@@ -115,22 +124,28 @@ export default function Admin() {
       toast.success("Signal created successfully!");
     }
 
-    // Update localStorage
     localStorage.setItem('signals', JSON.stringify(updatedSignals));
-    console.log('Updated signals in storage:', updatedSignals); // Debug log
-
     setSignals(updatedSignals);
     setOpen(false);
     form.reset();
     setEditingSignal(null);
 
-    // Trigger storage event for other tabs
     window.dispatchEvent(new Event('storage'));
   }
 
   const handleEdit = (signal: Signal) => {
     setEditingSignal(signal);
-    form.reset(signal);
+    form.reset({
+      title: signal.title,
+      description: signal.description,
+      signalType: signal.signalType,
+      marketType: signal.marketType,
+      blockchainType: signal.blockchainType,
+      entryPrice: signal.entryPrice,
+      targetPrice: signal.targetPrice,
+      stopLoss: signal.stopLoss,
+      displayLocation: signal.displayLocation,
+    });
     setOpen(true);
   };
 
@@ -140,9 +155,14 @@ export default function Admin() {
     localStorage.setItem('signals', JSON.stringify(updatedSignals));
     toast.success("Signal deleted successfully!");
     
-    // Trigger storage event for other tabs
     window.dispatchEvent(new Event('storage'));
   };
+
+  const filteredSignals = signals.filter(signal => {
+    const matchesSearch = signal.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || signal.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div className="container py-16">
@@ -326,18 +346,26 @@ export default function Admin() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full">Create Signal</Button>
+                <Button type="submit" className="w-full">
+                  {editingSignal ? "Update Signal" : "Create Signal"}
+                </Button>
               </form>
             </Form>
           </DialogContent>
         </Dialog>
       </div>
 
+      <SignalSearchAndFilter
+        onSearchChange={setSearchQuery}
+        onStatusFilter={setStatusFilter}
+        selectedStatus={statusFilter}
+      />
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {signals.length > 0 ? (
-          signals.map((signal) => (
+        {filteredSignals.length > 0 ? (
+          filteredSignals.map((signal) => (
             <div key={signal.id} className="relative group">
-              <SignalCard signal={signal} isAdmin />
+              <SignalCard signal={signal} isAdmin onEdit={handleEdit} onDelete={handleDelete} />
               <div className="absolute top-2 right-2 hidden group-hover:flex gap-2">
                 <Button
                   variant="secondary"
@@ -358,7 +386,7 @@ export default function Admin() {
           ))
         ) : (
           <div className="text-center py-12 col-span-full text-muted-foreground">
-            No signals created yet.
+            No signals found.
           </div>
         )}
       </div>
