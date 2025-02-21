@@ -55,10 +55,17 @@ export default function Admin() {
   const [editingSignal, setEditingSignal] = useState<Signal | null>(null);
 
   useEffect(() => {
-    const storedSignals = localStorage.getItem('signals');
-    if (storedSignals) {
-      setSignals(JSON.parse(storedSignals));
-    }
+    const loadSignals = () => {
+      const storedSignals = localStorage.getItem('signals');
+      if (storedSignals) {
+        const parsedSignals = JSON.parse(storedSignals);
+        setSignals(parsedSignals);
+      }
+    };
+
+    loadSignals();
+    window.addEventListener('storage', loadSignals);
+    return () => window.removeEventListener('storage', loadSignals);
   }, []);
 
   const form = useForm<FormValues>({
@@ -90,18 +97,12 @@ export default function Admin() {
     const newSignal: Signal = {
       id: editingSignal?.id || generateSignalId(),
       createdAt: editingSignal?.createdAt || new Date(),
-      status: editingSignal?.status || "pending",
-      approved: editingSignal?.approved || false,
-      title: values.title,
-      description: values.description,
-      signalType: values.signalType,
-      marketType: values.marketType,
-      blockchainType: values.blockchainType,
-      entryPrice: values.entryPrice,
-      targetPrice: values.targetPrice,
-      stopLoss: values.stopLoss,
-      displayLocation: values.displayLocation,
+      status: "active", // Set default status to active
+      approved: true, // Set signals as approved by default
+      ...values,
     };
+
+    console.log('Creating/Updating signal:', newSignal); // Debug log
 
     let updatedSignals;
     if (editingSignal) {
@@ -114,8 +115,11 @@ export default function Admin() {
       toast.success("Signal created successfully!");
     }
 
-    setSignals(updatedSignals);
+    // Update localStorage
     localStorage.setItem('signals', JSON.stringify(updatedSignals));
+    console.log('Updated signals in storage:', updatedSignals); // Debug log
+
+    setSignals(updatedSignals);
     setOpen(false);
     form.reset();
     setEditingSignal(null);

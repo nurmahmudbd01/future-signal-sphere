@@ -26,24 +26,30 @@ export function formatDateTime(date: Date): string {
 }
 
 export function getAllStoredSignals(): Signal[] {
-  let allSignals: Signal[] = [];
-  
-  // Get signals from localStorage
   try {
     const storedSignalsStr = localStorage.getItem('signals');
-    if (storedSignalsStr) {
-      const parsedSignals = JSON.parse(storedSignalsStr);
-      // Ensure createdAt is a Date object
-      const processedSignals = parsedSignals.map((signal: any) => ({
-        ...signal,
-        createdAt: new Date(signal.createdAt)
-      }));
-      allSignals = processedSignals;
-      console.log('Retrieved signals from storage:', allSignals);
-    }
-  } catch (error) {
-    console.error('Error parsing signals:', error);
-  }
+    console.log('Raw stored signals:', storedSignalsStr); // Debug log
 
-  return allSignals;
+    if (!storedSignalsStr) {
+      console.log('No signals found in storage');
+      return [];
+    }
+
+    const parsedSignals = JSON.parse(storedSignalsStr);
+    console.log('Parsed signals:', parsedSignals); // Debug log
+
+    // Ensure all dates are properly converted to Date objects
+    const processedSignals = parsedSignals.map((signal: any) => ({
+      ...signal,
+      createdAt: new Date(signal.createdAt),
+      status: signal.status || "active", // Ensure status has a default value
+      approved: signal.approved ?? true, // Ensure approved has a default value
+    }));
+
+    console.log('Processed signals:', processedSignals); // Debug log
+    return processedSignals;
+  } catch (error) {
+    console.error('Error retrieving signals:', error);
+    return [];
+  }
 }
