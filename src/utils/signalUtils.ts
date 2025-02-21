@@ -1,4 +1,6 @@
 
+import { Signal } from "@/types/signal";
+
 export function generateSignalId(): string {
   const timestamp = new Date().getTime();
   const random = Math.floor(Math.random() * 1000);
@@ -26,40 +28,22 @@ export function formatDateTime(date: Date): string {
 export function getAllStoredSignals(): Signal[] {
   let allSignals: Signal[] = [];
   
-  // Get all signals from the main signals storage
-  const mainStorageSignals = localStorage.getItem('signals');
-  if (mainStorageSignals) {
-    try {
-      const parsedSignals = JSON.parse(mainStorageSignals);
-      allSignals = allSignals.concat(parsedSignals);
-    } catch (error) {
-      console.error('Error parsing main signals:', error);
+  // Get signals from localStorage
+  try {
+    const storedSignalsStr = localStorage.getItem('signals');
+    if (storedSignalsStr) {
+      const parsedSignals = JSON.parse(storedSignalsStr);
+      // Ensure createdAt is a Date object
+      const processedSignals = parsedSignals.map((signal: any) => ({
+        ...signal,
+        createdAt: new Date(signal.createdAt)
+      }));
+      allSignals = processedSignals;
+      console.log('Retrieved signals from storage:', allSignals);
     }
+  } catch (error) {
+    console.error('Error parsing signals:', error);
   }
 
-  // Get current date for folder structure
-  const currentDate = new Date();
-  const year = currentDate.getFullYear();
-  const month = currentDate.toLocaleString('default', { month: 'long' });
-  const day = currentDate.toISOString().split('T')[0];
-  
-  // Try to get signals from today's storage
-  const todayPath = `storedSignal/${year}/${month}/${day}`;
-  const todaySignals = localStorage.getItem(todayPath);
-  if (todaySignals) {
-    try {
-      const parsedTodaySignals = JSON.parse(todaySignals);
-      allSignals = allSignals.concat(parsedTodaySignals);
-    } catch (error) {
-      console.error('Error parsing today signals:', error);
-    }
-  }
-
-  // Remove duplicates based on signal ID
-  const uniqueSignals = Array.from(
-    new Map(allSignals.map(signal => [signal.id, signal])).values()
-  );
-
-  console.log('All retrieved signals:', uniqueSignals); // Debug log
-  return uniqueSignals;
+  return allSignals;
 }

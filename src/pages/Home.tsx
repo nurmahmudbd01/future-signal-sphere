@@ -12,34 +12,28 @@ export default function Home() {
 
   useEffect(() => {
     const loadSignals = () => {
-      try {
-        const allSignals = getAllStoredSignals();
-        console.log('Retrieved all signals:', allSignals); // Debug log
+      const allSignals = getAllStoredSignals();
+      console.log('All signals retrieved:', allSignals);
 
-        // Filter signals for main page
-        const mainSignals = allSignals.filter(signal => {
-          const isMainOrBoth = signal.displayLocation === "Main" || signal.displayLocation === "Both";
-          const isApproved = signal.approved === true;
-          return isMainOrBoth && isApproved;
-        });
+      // Filter signals for main page
+      const mainSignals = allSignals.filter(signal => {
+        console.log('Checking signal:', signal);
+        const isMainOrBoth = signal.displayLocation === "Main" || signal.displayLocation === "Both";
+        const isApproved = signal.approved === true;
+        return isMainOrBoth && isApproved;
+      });
 
-        console.log('Filtered main signals:', mainSignals); // Debug log
+      console.log('Filtered main signals:', mainSignals);
 
-        // Sort signals
-        const sortedSignals = [...mainSignals].sort((a, b) => {
-          // Active signals first
-          if (a.status !== 'closed' && b.status === 'closed') return -1;
-          if (a.status === 'closed' && b.status !== 'closed') return 1;
-          
-          // Then by date (newest first)
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
+      // Sort signals: active first, then by date
+      const sortedSignals = [...mainSignals].sort((a, b) => {
+        if (a.status === 'closed' && b.status !== 'closed') return 1;
+        if (a.status !== 'closed' && b.status === 'closed') return -1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
 
-        console.log('Sorted main signals:', sortedSignals); // Debug log
-        setSignals(sortedSignals);
-      } catch (error) {
-        console.error('Error loading signals:', error);
-      }
+      console.log('Sorted signals:', sortedSignals);
+      setSignals(sortedSignals);
     };
 
     loadSignals();

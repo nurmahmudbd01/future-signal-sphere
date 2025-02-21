@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignalCard } from "@/components/SignalCard";
@@ -9,34 +10,28 @@ export default function Premium() {
 
   useEffect(() => {
     const loadSignals = () => {
-      try {
-        const allSignals = getAllStoredSignals();
-        console.log('Retrieved all signals (Premium):', allSignals); // Debug log
+      const allSignals = getAllStoredSignals();
+      console.log('All signals retrieved (Premium):', allSignals);
 
-        // Filter signals for premium page
-        const premiumSignals = allSignals.filter(signal => {
-          const isPremiumOrBoth = signal.displayLocation === "Premium" || signal.displayLocation === "Both";
-          const isApproved = signal.approved === true;
-          return isPremiumOrBoth && isApproved;
-        });
+      // Filter signals for premium page
+      const premiumSignals = allSignals.filter(signal => {
+        console.log('Checking signal (Premium):', signal);
+        const isPremiumOrBoth = signal.displayLocation === "Premium" || signal.displayLocation === "Both";
+        const isApproved = signal.approved === true;
+        return isPremiumOrBoth && isApproved;
+      });
 
-        console.log('Filtered premium signals:', premiumSignals); // Debug log
+      console.log('Filtered premium signals:', premiumSignals);
 
-        // Sort signals
-        const sortedSignals = [...premiumSignals].sort((a, b) => {
-          // Active signals first
-          if (a.status !== 'closed' && b.status === 'closed') return -1;
-          if (a.status === 'closed' && b.status !== 'closed') return 1;
-          
-          // Then by date (newest first)
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
+      // Sort signals: active first, then by date
+      const sortedSignals = [...premiumSignals].sort((a, b) => {
+        if (a.status === 'closed' && b.status !== 'closed') return 1;
+        if (a.status !== 'closed' && b.status === 'closed') return -1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
 
-        console.log('Sorted premium signals:', sortedSignals); // Debug log
-        setSignals(sortedSignals);
-      } catch (error) {
-        console.error('Error loading signals:', error);
-      }
+      console.log('Sorted premium signals:', sortedSignals);
+      setSignals(sortedSignals);
     };
 
     loadSignals();
