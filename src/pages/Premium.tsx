@@ -2,26 +2,23 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignalCard } from "@/components/SignalCard";
-import { Signal } from "@/types/signal";
+import { Signal, SignalStatus } from "@/types/signal";
 import { getAllStoredSignals } from "@/utils/signalUtils";
+import { SignalSearchAndFilter } from "@/components/SignalSearchAndFilter";
 
 export default function Premium() {
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<SignalStatus | 'all'>('all');
 
   useEffect(() => {
     const loadSignals = () => {
       const allSignals = getAllStoredSignals();
-      console.log('All signals retrieved (Premium):', allSignals);
-
-      // Filter signals for premium page
       const premiumSignals = allSignals.filter(signal => {
-        console.log('Checking signal (Premium):', signal);
         const isPremiumOrBoth = signal.displayLocation === "Premium" || signal.displayLocation === "Both";
         const isApproved = signal.approved === true;
         return isPremiumOrBoth && isApproved;
       });
-
-      console.log('Filtered premium signals:', premiumSignals);
 
       // Sort signals: active first, then by date
       const sortedSignals = [...premiumSignals].sort((a, b) => {
@@ -30,7 +27,6 @@ export default function Premium() {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
 
-      console.log('Sorted premium signals:', sortedSignals);
       setSignals(sortedSignals);
     };
 
@@ -39,12 +35,26 @@ export default function Premium() {
     return () => window.removeEventListener('storage', loadSignals);
   }, []);
 
-  const futureSignals = signals.filter(signal => signal.marketType === "Future");
-  const spotSignals = signals.filter(signal => signal.marketType === "Spot");
+  // Filter signals based on search and status
+  const filteredSignals = signals.filter(signal => {
+    const matchesSearch = signal.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || signal.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const futureSignals = filteredSignals.filter(signal => signal.marketType === "Future");
+  const spotSignals = filteredSignals.filter(signal => signal.marketType === "Spot");
 
   return (
     <div className="container py-16">
       <h1 className="text-3xl font-bold mb-8">Premium Signals</h1>
+
+      <SignalSearchAndFilter
+        onSearchChange={setSearchQuery}
+        onStatusFilter={setStatusFilter}
+        selectedStatus={statusFilter}
+      />
+
       <Tabs defaultValue="future" className="w-full">
         <div className="flex justify-center mb-8">
           <TabsList className="grid w-full max-w-md grid-cols-2">

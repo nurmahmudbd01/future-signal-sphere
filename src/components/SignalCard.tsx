@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Clock, CheckCircle, XCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, Clock, CheckCircle, XCircle, Pencil, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,6 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete }: SignalCardProp
 
   const isProfitable = signal.profitLoss && signal.profitLoss.percentage > 0;
   const isLoss = signal.profitLoss && signal.profitLoss.percentage < 0;
-
   const status = signal.status || 'active';
 
   const statusColor = {
@@ -71,6 +70,25 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete }: SignalCardProp
   return (
     <>
       <Card className={`h-full relative ${status === 'closed' ? (isProfitable ? 'border-green-500' : 'border-red-500') : ''}`}>
+        {isAdmin && (
+          <div className="absolute top-2 right-2 z-20 flex gap-2">
+            <Button
+              variant="secondary"
+              size="icon"
+              onClick={() => onEdit?.(signal)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="destructive"
+              size="icon"
+              onClick={() => onDelete?.(signal)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+        
         {status === 'closed' && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-[1px] rounded-lg z-10">
             <div className="flex flex-col items-center gap-2 px-4 py-2 rounded-lg bg-background/80 shadow-sm border">
@@ -156,13 +174,13 @@ export function SignalCard({ signal, isAdmin, onEdit, onDelete }: SignalCardProp
                 </div>
               </>
             )}
-            {isAdmin && (
+            {isAdmin && !signal.status && (
               <Button 
                 className="w-full mt-4" 
                 variant="outline"
-                onClick={() => status === 'closed' ? onEdit?.(signal) : setIsClosingDialogOpen(true)}
+                onClick={() => setIsClosingDialogOpen(true)}
               >
-                {status === 'closed' ? 'Edit Signal' : 'Close Signal'}
+                Close Signal
               </Button>
             )}
           </div>

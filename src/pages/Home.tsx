@@ -4,11 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowRight, TrendingUp, Activity, Target } from "lucide-react";
 import { SignalCard } from "@/components/SignalCard";
-import { Signal } from "@/types/signal";
+import { Signal, SignalStatus } from "@/types/signal";
 import { getAllStoredSignals } from "@/utils/signalUtils";
+import { SignalSearchAndFilter } from "@/components/SignalSearchAndFilter";
 
 export default function Home() {
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<SignalStatus | 'all'>('all');
 
   useEffect(() => {
     const loadSignals = () => {
@@ -41,8 +44,15 @@ export default function Home() {
     return () => window.removeEventListener('storage', loadSignals);
   }, []);
 
-  const futureSignals = signals.filter(signal => signal.marketType === "Future");
-  const spotSignals = signals.filter(signal => signal.marketType === "Spot");
+  // Filter signals based on search and status
+  const filteredSignals = signals.filter(signal => {
+    const matchesSearch = signal.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || signal.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const futureSignals = filteredSignals.filter(signal => signal.marketType === "Future");
+  const spotSignals = filteredSignals.filter(signal => signal.marketType === "Spot");
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -93,6 +103,12 @@ export default function Home() {
 
       <section className="py-16">
         <div className="container">
+          <SignalSearchAndFilter
+            onSearchChange={setSearchQuery}
+            onStatusFilter={setStatusFilter}
+            selectedStatus={statusFilter}
+          />
+
           <Tabs defaultValue="future" className="w-full">
             <div className="flex justify-center mb-8">
               <TabsList className="grid w-full max-w-md grid-cols-2">
