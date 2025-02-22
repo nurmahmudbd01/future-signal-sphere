@@ -1,15 +1,16 @@
-
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignalCard } from "@/components/SignalCard";
 import { Signal, SignalStatus } from "@/types/signal";
 import { getAllStoredSignals } from "@/utils/signalUtils";
 import { SignalSearchAndFilter } from "@/components/SignalSearchAndFilter";
+import { Button } from "@/components/ui/button";
 
 export default function Premium() {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SignalStatus | 'all'>('all');
+  const [visibleCount, setVisibleCount] = useState(12);
 
   useEffect(() => {
     const loadSignals = () => {
@@ -42,8 +43,20 @@ export default function Premium() {
     return matchesSearch && matchesStatus;
   });
 
-  const futureSignals = filteredSignals.filter(signal => signal.marketType === "Future");
-  const spotSignals = filteredSignals.filter(signal => signal.marketType === "Spot");
+  const visibleFutureSignals = filteredSignals
+    .filter(signal => signal.marketType === "Future")
+    .slice(0, visibleCount);
+  
+  const visibleSpotSignals = filteredSignals
+    .filter(signal => signal.marketType === "Spot")
+    .slice(0, visibleCount);
+
+  const hasMoreFuture = filteredSignals.filter(s => s.marketType === "Future").length > visibleCount;
+  const hasMoreSpot = filteredSignals.filter(s => s.marketType === "Spot").length > visibleCount;
+
+  const loadMore = () => {
+    setVisibleCount(prev => prev + 6);
+  };
 
   return (
     <div className="container py-16">
@@ -64,8 +77,8 @@ export default function Premium() {
         </div>
         <TabsContent value="future">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {futureSignals.length > 0 ? (
-              futureSignals.map((signal) => (
+            {visibleFutureSignals.length > 0 ? (
+              visibleFutureSignals.map((signal) => (
                 <SignalCard key={signal.id} signal={signal} />
               ))
             ) : (
@@ -74,11 +87,18 @@ export default function Premium() {
               </div>
             )}
           </div>
+          {hasMoreFuture && (
+            <div className="flex justify-center mt-8">
+              <Button onClick={loadMore} variant="outline">
+                Show More
+              </Button>
+            </div>
+          )}
         </TabsContent>
         <TabsContent value="spot">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {spotSignals.length > 0 ? (
-              spotSignals.map((signal) => (
+            {visibleSpotSignals.length > 0 ? (
+              visibleSpotSignals.map((signal) => (
                 <SignalCard key={signal.id} signal={signal} />
               ))
             ) : (
@@ -87,6 +107,13 @@ export default function Premium() {
               </div>
             )}
           </div>
+          {hasMoreSpot && (
+            <div className="flex justify-center mt-8">
+              <Button onClick={loadMore} variant="outline">
+                Show More
+              </Button>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

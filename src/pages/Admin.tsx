@@ -1,29 +1,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Pencil, Trash2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
@@ -32,7 +12,7 @@ import * as z from "zod";
 import { toast } from "sonner";
 import { SignalCard } from "@/components/SignalCard";
 import { generateSignalId } from "@/utils/signalUtils";
-import { Signal } from "@/types/signal";
+import { Signal, SignalStatus } from "@/types/signal";
 import { SignalSearchAndFilter } from "@/components/SignalSearchAndFilter";
 
 const formSchema = z.object({
@@ -55,6 +35,7 @@ export default function Admin() {
   const [editingSignal, setEditingSignal] = useState<Signal | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SignalStatus | 'all'>('all');
+  const [visibleCount, setVisibleCount] = useState(12);
 
   useEffect(() => {
     const loadSignals = () => {
@@ -163,6 +144,13 @@ export default function Admin() {
     const matchesStatus = statusFilter === 'all' || signal.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const visibleSignals = filteredSignals.slice(0, visibleCount);
+  const hasMore = filteredSignals.length > visibleCount;
+
+  const loadMore = () => {
+    setVisibleCount(prev => prev + 6);
+  };
 
   return (
     <div className="container py-16">
@@ -362,8 +350,8 @@ export default function Admin() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredSignals.length > 0 ? (
-          filteredSignals.map((signal) => (
+        {visibleSignals.length > 0 ? (
+          visibleSignals.map((signal) => (
             <div key={signal.id} className="relative group">
               <SignalCard signal={signal} isAdmin onEdit={handleEdit} onDelete={handleDelete} />
               <div className="absolute top-2 right-2 hidden group-hover:flex gap-2">
@@ -390,6 +378,14 @@ export default function Admin() {
           </div>
         )}
       </div>
+      
+      {hasMore && (
+        <div className="flex justify-center mt-8">
+          <Button onClick={loadMore} variant="outline">
+            Show More
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

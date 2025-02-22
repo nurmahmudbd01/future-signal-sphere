@@ -12,6 +12,7 @@ export default function Home() {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SignalStatus | 'all'>('all');
+  const [visibleCount, setVisibleCount] = useState(12);
 
   useEffect(() => {
     const loadSignals = () => {
@@ -51,8 +52,20 @@ export default function Home() {
     return matchesSearch && matchesStatus;
   });
 
-  const futureSignals = filteredSignals.filter(signal => signal.marketType === "Future");
-  const spotSignals = filteredSignals.filter(signal => signal.marketType === "Spot");
+  const visibleFutureSignals = filteredSignals
+    .filter(signal => signal.marketType === "Future")
+    .slice(0, visibleCount);
+  
+  const visibleSpotSignals = filteredSignals
+    .filter(signal => signal.marketType === "Spot")
+    .slice(0, visibleCount);
+
+  const hasMoreFuture = filteredSignals.filter(s => s.marketType === "Future").length > visibleCount;
+  const hasMoreSpot = filteredSignals.filter(s => s.marketType === "Spot").length > visibleCount;
+
+  const loadMore = () => {
+    setVisibleCount(prev => prev + 6);
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -118,8 +131,8 @@ export default function Home() {
             </div>
             <TabsContent value="future">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {futureSignals.length > 0 ? (
-                  futureSignals.map((signal) => (
+                {visibleFutureSignals.length > 0 ? (
+                  visibleFutureSignals.map((signal) => (
                     <SignalCard key={signal.id} signal={signal} />
                   ))
                 ) : (
@@ -128,11 +141,18 @@ export default function Home() {
                   </div>
                 )}
               </div>
+              {hasMoreFuture && (
+                <div className="flex justify-center mt-8">
+                  <Button onClick={loadMore} variant="outline">
+                    Show More
+                  </Button>
+                </div>
+              )}
             </TabsContent>
             <TabsContent value="spot">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {spotSignals.length > 0 ? (
-                  spotSignals.map((signal) => (
+                {visibleSpotSignals.length > 0 ? (
+                  visibleSpotSignals.map((signal) => (
                     <SignalCard key={signal.id} signal={signal} />
                   ))
                 ) : (
@@ -141,6 +161,13 @@ export default function Home() {
                   </div>
                 )}
               </div>
+              {hasMoreSpot && (
+                <div className="flex justify-center mt-8">
+                  <Button onClick={loadMore} variant="outline">
+                    Show More
+                  </Button>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </div>
