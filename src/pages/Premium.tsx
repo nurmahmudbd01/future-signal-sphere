@@ -44,29 +44,33 @@ export default function Premium() {
     return matchesSearch && matchesStatus;
   });
 
+  // Filter and search in closed signals separately
+  const filteredClosedSignals = signals.filter(signal => {
+    const matchesSearch = signal.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const isClosedSignal = signal.status === 'closed';
+    return matchesSearch && isClosedSignal;
+  });
+
   const visibleFutureSignals = filteredSignals
-    .filter(signal => signal.marketType === "Future" && (statusFilter === 'closed' ? signal.status === 'closed' : signal.status !== 'closed'))
+    .filter(signal => signal.marketType === "Future")
     .slice(0, visibleCount);
   
   const visibleSpotSignals = filteredSignals
-    .filter(signal => signal.marketType === "Spot" && (statusFilter === 'closed' ? signal.status === 'closed' : signal.status !== 'closed'))
+    .filter(signal => signal.marketType === "Spot")
     .slice(0, visibleCount);
 
-  // Filter closed signals separately
-  const closedSignals = statusFilter === 'all' || statusFilter === 'closed'
-    ? signals
-        .filter(signal => signal.status === 'closed')
-        .sort((a, b) => {
-          const dateA = a.profitLoss?.closingTime ? new Date(a.profitLoss.closingTime) : new Date(0);
-          const dateB = b.profitLoss?.closingTime ? new Date(b.profitLoss.closingTime) : new Date(0);
-          return dateB.getTime() - dateA.getTime();
-        })
-        .slice(0, visibleClosedCount)
-    : [];
+  // Filter closed signals by market type
+  const closedSignals = filteredClosedSignals
+    .sort((a, b) => {
+      const dateA = a.profitLoss?.closingTime ? new Date(a.profitLoss.closingTime) : new Date(0);
+      const dateB = b.profitLoss?.closingTime ? new Date(b.profitLoss.closingTime) : new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    })
+    .slice(0, visibleClosedCount);
 
-  const hasMoreFuture = filteredSignals.filter(s => s.marketType === "Future" && (statusFilter === 'closed' ? s.status === 'closed' : s.status !== 'closed')).length > visibleCount;
-  const hasMoreSpot = filteredSignals.filter(s => s.marketType === "Spot" && (statusFilter === 'closed' ? s.status === 'closed' : s.status !== 'closed')).length > visibleCount;
-  const hasMoreClosed = signals.filter(s => s.status === 'closed').length > visibleClosedCount;
+  const hasMoreFuture = filteredSignals.filter(s => s.marketType === "Future").length > visibleCount;
+  const hasMoreSpot = filteredSignals.filter(s => s.marketType === "Spot").length > visibleCount;
+  const hasMoreClosed = filteredClosedSignals.length > visibleClosedCount;
 
   const loadMore = () => {
     setVisibleCount(prev => prev + 6);
@@ -140,9 +144,14 @@ export default function Premium() {
         <h2 className="text-2xl font-bold mb-8">Recently Closed Signals</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {closedSignals.length > 0 ? (
-            closedSignals.map((signal) => (
-              <SignalCard key={signal.id} signal={signal} />
-            ))
+            closedSignals
+              .filter(signal => {
+                const selectedTab = document.querySelector('[data-state="active"][role="tab"]')?.getAttribute('value');
+                return selectedTab === 'future' ? signal.marketType === 'Future' : signal.marketType === 'Spot';
+              })
+              .map((signal) => (
+                <SignalCard key={signal.id} signal={signal} />
+              ))
           ) : (
             <div className="text-center py-12 col-span-full text-muted-foreground">
               No closed signals available.
