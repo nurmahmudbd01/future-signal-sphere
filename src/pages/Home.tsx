@@ -13,6 +13,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SignalStatus | 'all'>('all');
   const [visibleCount, setVisibleCount] = useState(12);
+  const [visibleClosedCount, setVisibleClosedCount] = useState(6);
 
   useEffect(() => {
     const loadSignals = () => {
@@ -53,18 +54,33 @@ export default function Home() {
   });
 
   const visibleFutureSignals = filteredSignals
-    .filter(signal => signal.marketType === "Future")
+    .filter(signal => signal.marketType === "Future" && signal.status !== 'closed')
     .slice(0, visibleCount);
   
   const visibleSpotSignals = filteredSignals
-    .filter(signal => signal.marketType === "Spot")
+    .filter(signal => signal.marketType === "Spot" && signal.status !== 'closed')
     .slice(0, visibleCount);
 
-  const hasMoreFuture = filteredSignals.filter(s => s.marketType === "Future").length > visibleCount;
-  const hasMoreSpot = filteredSignals.filter(s => s.marketType === "Spot").length > visibleCount;
+  // Filter closed signals separately
+  const closedSignals = signals
+    .filter(signal => signal.status === 'closed')
+    .sort((a, b) => {
+      const dateA = a.profitLoss?.closingTime ? new Date(a.profitLoss.closingTime) : new Date(0);
+      const dateB = b.profitLoss?.closingTime ? new Date(b.profitLoss.closingTime) : new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    })
+    .slice(0, visibleClosedCount);
+
+  const hasMoreFuture = filteredSignals.filter(s => s.marketType === "Future" && s.status !== 'closed').length > visibleCount;
+  const hasMoreSpot = filteredSignals.filter(s => s.marketType === "Spot" && s.status !== 'closed').length > visibleCount;
+  const hasMoreClosed = signals.filter(s => s.status === 'closed').length > visibleClosedCount;
 
   const loadMore = () => {
     setVisibleCount(prev => prev + 6);
+  };
+
+  const loadMoreClosed = () => {
+    setVisibleClosedCount(prev => prev + 6);
   };
 
   return (
@@ -170,6 +186,28 @@ export default function Home() {
               )}
             </TabsContent>
           </Tabs>
+
+          <div className="mt-16">
+            <h2 className="text-2xl font-bold mb-8">Recently Closed Signals</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {closedSignals.length > 0 ? (
+                closedSignals.map((signal) => (
+                  <SignalCard key={signal.id} signal={signal} />
+                ))
+              ) : (
+                <div className="text-center py-12 col-span-full text-muted-foreground">
+                  No closed signals available.
+                </div>
+              )}
+            </div>
+            {hasMoreClosed && (
+              <div className="flex justify-center mt-8">
+                <Button onClick={loadMoreClosed} variant="outline">
+                  Show More Closed Signals
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </section>
     </div>
