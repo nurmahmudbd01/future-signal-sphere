@@ -89,6 +89,8 @@ export default function Home() {
     setVisibleClosedCount(prev => prev + 6);
   };
 
+  const [selectedTab, setSelectedTab] = useState("future");
+
   return (
     <div className="flex flex-col min-h-screen">
       <section className="relative py-20 overflow-hidden">
@@ -144,7 +146,7 @@ export default function Home() {
             selectedStatus={statusFilter}
           />
 
-          <Tabs defaultValue="future" className="w-full">
+          <Tabs defaultValue="future" className="w-full" onValueChange={setSelectedTab}>
             <div className="flex justify-center mb-8">
               <TabsList className="grid w-full max-w-md grid-cols-2">
                 <TabsTrigger value="future">Future Signals</TabsTrigger>
@@ -197,12 +199,11 @@ export default function Home() {
           <div className="mt-16">
             <h2 className="text-2xl font-bold mb-8">Recently Closed Signals</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {closedSignals.length > 0 ? (
+              {closedSignals
+                .filter(signal => signal.marketType === (selectedTab === 'future' ? 'Future' : 'Spot'))
+                .length > 0 ? (
                 closedSignals
-                  .filter(signal => {
-                    const selectedTab = document.querySelector('[data-state="active"][role="tab"]')?.getAttribute('value');
-                    return selectedTab === 'future' ? signal.marketType === 'Future' : signal.marketType === 'Spot';
-                  })
+                  .filter(signal => signal.marketType === (selectedTab === 'future' ? 'Future' : 'Spot'))
                   .map((signal) => (
                     <SignalCard key={signal.id} signal={signal} />
                   ))
