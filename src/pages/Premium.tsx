@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignalCard } from "@/components/SignalCard";
@@ -12,6 +13,7 @@ export default function Premium() {
   const [statusFilter, setStatusFilter] = useState<SignalStatus | 'all'>('all');
   const [visibleCount, setVisibleCount] = useState(12);
   const [visibleClosedCount, setVisibleClosedCount] = useState(6);
+  const [selectedTab, setSelectedTab] = useState("future");
 
   useEffect(() => {
     const loadSignals = () => {
@@ -90,7 +92,7 @@ export default function Premium() {
         selectedStatus={statusFilter}
       />
 
-      <Tabs defaultValue="future" className="w-full">
+      <Tabs defaultValue="future" className="w-full" onValueChange={setSelectedTab}>
         <div className="flex justify-center mb-8">
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="future">Future Signals</TabsTrigger>
@@ -143,12 +145,11 @@ export default function Premium() {
       <div className="mt-16">
         <h2 className="text-2xl font-bold mb-8">Recently Closed Signals</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {closedSignals.length > 0 ? (
+          {closedSignals
+            .filter(signal => signal.marketType === (selectedTab === 'future' ? 'Future' : 'Spot'))
+            .length > 0 ? (
             closedSignals
-              .filter(signal => {
-                const selectedTab = document.querySelector('[data-state="active"][role="tab"]')?.getAttribute('value');
-                return selectedTab === 'future' ? signal.marketType === 'Future' : signal.marketType === 'Spot';
-              })
+              .filter(signal => signal.marketType === (selectedTab === 'future' ? 'Future' : 'Spot'))
               .map((signal) => (
                 <SignalCard key={signal.id} signal={signal} />
               ))
