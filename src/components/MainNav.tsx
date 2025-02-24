@@ -1,13 +1,17 @@
 
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { TrendingUp, Lock, Settings, LogIn } from "lucide-react";
+import { TrendingUp, Lock, Settings, LogIn, LogOut, User } from "lucide-react";
 import { Button } from "./ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { logoutUser } from "@/lib/firebase";
+import { useToast } from "@/components/ui/use-toast";
 
 export function MainNav() {
   const location = useLocation();
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -16,6 +20,22 @@ export function MainNav() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out.",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to log out. Please try again.",
+      });
+    }
+  };
 
   return (
     <header
@@ -29,20 +49,27 @@ export function MainNav() {
           <span>Future Trade Signals</span>
         </Link>
         <div className="flex items-center space-x-4">
-          {isAuthenticated ? (
+          {user ? (
             <>
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <User className="h-4 w-4" />
+                <span>{user.displayName}</span>
+              </div>
               <Link to="/premium">
                 <Button variant="ghost" size="sm" className="flex items-center space-x-2">
                   <Lock className="h-4 w-4" />
                   <span>Premium</span>
                 </Button>
               </Link>
-              <Link to="/admin">
-                <Button variant="ghost" size="sm" className="flex items-center space-x-2">
-                  <Settings className="h-4 w-4" />
-                  <span>Admin</span>
-                </Button>
-              </Link>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="flex items-center space-x-2"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Logout</span>
+              </Button>
             </>
           ) : (
             <Link to="/auth">

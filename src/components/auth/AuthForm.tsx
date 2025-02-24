@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { registerUser, loginUser } from '@/lib/firebase';
 
 export function AuthForm() {
   const [isLoading, setIsLoading] = useState(false);
@@ -20,25 +21,24 @@ export function AuthForm() {
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
+    const username = formData.get('username') as string;
 
     try {
-      const response = await fetch(`/api/auth/${type}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
+      if (type === 'register') {
+        if (!username) throw new Error('Username is required');
+        await registerUser(email, password, username);
         toast({
-          title: type === 'login' ? "Welcome back!" : "Account created!",
-          description: type === 'login' ? "You've been successfully logged in." : "Please log in with your new account.",
+          title: "Account created!",
+          description: "Please log in with your new account.",
         });
-        navigate('/');
       } else {
-        throw new Error(data.message || 'Something went wrong');
+        await loginUser(email, password);
+        toast({
+          title: "Welcome back!",
+          description: "You've been successfully logged in.",
+        });
       }
+      navigate('/');
     } catch (error) {
       toast({
         variant: "destructive",
@@ -92,12 +92,22 @@ export function AuthForm() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input id="username" name="username" type="text" required />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="reg-email">Email</Label>
                 <Input id="reg-email" name="email" type="email" required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reg-password">Password</Label>
-                <Input id="reg-password" name="password" type="password" required />
+                <Input 
+                  id="reg-password" 
+                  name="password" 
+                  type="password" 
+                  required 
+                  minLength={6}
+                />
               </div>
             </CardContent>
             <CardFooter>
