@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/use-toast";
 export function MainNav() {
   const location = useLocation();
   const [isScrolled, setIsScrolled] = useState(false);
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -49,11 +49,11 @@ export function MainNav() {
           <span>Future Trade Signals</span>
         </Link>
         <div className="flex items-center space-x-4">
-          {user ? (
+          {user && userProfile ? (
             <>
               <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                 <User className="h-4 w-4" />
-                <span>{user.displayName}</span>
+                <span>{userProfile.username}</span>
               </div>
               <Link to="/premium">
                 <Button variant="ghost" size="sm" className="flex items-center space-x-2">

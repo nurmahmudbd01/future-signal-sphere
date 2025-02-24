@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -29,16 +28,17 @@ export function AuthForm() {
         await registerUser(email, password, username);
         toast({
           title: "Account created!",
-          description: "Please log in with your new account.",
+          description: "You have been automatically logged in.",
         });
+        navigate('/', { replace: true }); // Use replace to prevent going back to auth page
       } else {
         await loginUser(email, password);
         toast({
           title: "Welcome back!",
           description: "You've been successfully logged in.",
         });
+        navigate('/', { replace: true }); // Use replace to prevent going back to auth page
       }
-      navigate('/');
     } catch (error) {
       toast({
         variant: "destructive",

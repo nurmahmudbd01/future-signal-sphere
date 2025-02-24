@@ -40,6 +40,9 @@ export const registerUser = async (email: string, password: string, username: st
       uid: userCredential.user.uid
     });
 
+    // Login the user after registration
+    await loginUser(email, password);
+
     return userCredential.user;
   } catch (error: any) {
     if (error.code === 'auth/email-already-in-use') {
@@ -50,9 +53,23 @@ export const registerUser = async (email: string, password: string, username: st
 };
 
 export const loginUser = async (email: string, password: string) => {
-  return signInWithEmailAndPassword(auth, email, password);
+  const result = await signInWithEmailAndPassword(auth, email, password);
+  // Get user profile data
+  const userDoc = await getDoc(doc(db, 'users', result.user.uid));
+  if (!userDoc.exists()) {
+    throw new Error('User profile not found');
+  }
+  return result;
 };
 
 export const logoutUser = async () => {
   return signOut(auth);
+};
+
+export const getUserProfile = async (uid: string) => {
+  const userDoc = await getDoc(doc(db, 'users', uid));
+  if (!userDoc.exists()) {
+    throw new Error('User profile not found');
+  }
+  return userDoc.data();
 };
