@@ -1,7 +1,7 @@
 
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyD0-woWJiIZcyLizZP3PGwANIGNvKJ8TYA",
@@ -18,28 +18,35 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 export const registerUser = async (email: string, password: string, username: string) => {
-  // Check if username is already taken
-  const usernameDoc = doc(db, 'usernames', username);
-  const usernameSnapshot = await getDoc(usernameDoc);
-  
-  if (usernameSnapshot.exists()) {
-    throw new Error('Username already taken');
+  try {
+    // Create user with email and password
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    
+    // Update profile with username
+    await updateProfile(userCredential.user, {
+      displayName: username
+    });
+
+    // Store user data in Firestore
+    await setDoc(doc(db, 'users', userCredential.user.uid), {
+      email,
+      username,
+      createdAt: new Date().toISOString(),
+      role: 'user'
+    });
+
+    // Store username separately for uniqueness check
+    await setDoc(doc(db, 'usernames', username), {
+      uid: userCredential.user.uid
+    });
+
+    return userCredential.user;
+  } catch (error: any) {
+    if (error.code === 'auth/email-already-in-use') {
+      throw new Error('Email is already registered');
+    }
+    throw error;
   }
-
-  // Create user with email and password
-  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-  
-  // Update profile with username
-  await updateProfile(userCredential.user, {
-    displayName: username
-  });
-
-  // Reserve username in database
-  await setDoc(usernameDoc, {
-    uid: userCredential.user.uid
-  });
-
-  return userCredential.user;
 };
 
 export const loginUser = async (email: string, password: string) => {
