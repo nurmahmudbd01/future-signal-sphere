@@ -1,20 +1,21 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { TrendingUp, Lock, Settings } from "lucide-react";
+import { TrendingUp, Lock, Settings, LogIn } from "lucide-react";
 import { Button } from "./ui/button";
 
 export function MainNav() {
   const location = useLocation();
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  useState(() => {
+  useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 0);
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  });
+  }, []);
 
   return (
     <header
@@ -28,18 +29,29 @@ export function MainNav() {
           <span>Future Trade Signals</span>
         </Link>
         <div className="flex items-center space-x-4">
-          <Link to="/premium">
-            <Button variant="ghost" size="sm" className="flex items-center space-x-2">
-              <Lock className="h-4 w-4" />
-              <span>Premium</span>
-            </Button>
-          </Link>
-          <Link to="/admin">
-            <Button variant="ghost" size="sm" className="flex items-center space-x-2">
-              <Settings className="h-4 w-4" />
-              <span>Admin</span>
-            </Button>
-          </Link>
+          {isAuthenticated ? (
+            <>
+              <Link to="/premium">
+                <Button variant="ghost" size="sm" className="flex items-center space-x-2">
+                  <Lock className="h-4 w-4" />
+                  <span>Premium</span>
+                </Button>
+              </Link>
+              <Link to="/admin">
+                <Button variant="ghost" size="sm" className="flex items-center space-x-2">
+                  <Settings className="h-4 w-4" />
+                  <span>Admin</span>
+                </Button>
+              </Link>
+            </>
+          ) : (
+            <Link to="/auth">
+              <Button variant="default" size="sm" className="flex items-center space-x-2">
+                <LogIn className="h-4 w-4" />
+                <span>Login / Register</span>
+              </Button>
+            </Link>
+          )}
         </div>
       </nav>
     </header>
