@@ -1,7 +1,16 @@
 
 import { initializeApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection } from 'firebase/firestore';
+import { 
+  getAuth, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  updateProfile,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential
+} from 'firebase/auth';
+import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyD0-woWJiIZcyLizZP3PGwANIGNvKJ8TYA",
@@ -72,4 +81,31 @@ export const getUserProfile = async (uid: string) => {
     throw new Error('User profile not found');
   }
   return userDoc.data();
+};
+
+export const updateUserProfile = async (uid: string, data: { username?: string }) => {
+  const userRef = doc(db, 'users', uid);
+  await updateDoc(userRef, data);
+  
+  if (data.username) {
+    // Update username in auth profile
+    const user = auth.currentUser;
+    if (user) {
+      await updateProfile(user, {
+        displayName: data.username
+      });
+    }
+  }
+};
+
+export const updateUserPassword = async (currentPassword: string, newPassword: string) => {
+  const user = auth.currentUser;
+  if (!user || !user.email) throw new Error('No user logged in');
+
+  // Re-authenticate user before password change
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  
+  // Update password
+  await updatePassword(user, newPassword);
 };

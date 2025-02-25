@@ -55,6 +55,12 @@ export function MainNav() {
                 <User className="h-4 w-4" />
                 <span>{userProfile.username}</span>
               </div>
+              <Link to="/profile">
+                <Button variant="ghost" size="sm" className="flex items-center space-x-2">
+                  <Settings className="h-4 w-4" />
+                  <span>Profile</span>
+                </Button>
+              </Link>
               <Link to="/premium">
                 <Button variant="ghost" size="sm" className="flex items-center space-x-2">
                   <Lock className="h-4 w-4" />
