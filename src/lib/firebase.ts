@@ -1,4 +1,3 @@
-
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -30,24 +29,26 @@ export const registerUser = async (email: string, password: string, username: st
   try {
     // Create user with email and password
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const uid = userCredential.user.uid;
     
     // Update profile with username
     await updateProfile(userCredential.user, {
       displayName: username
     });
 
-    // Store user data in Firestore
-    await setDoc(doc(db, 'users', userCredential.user.uid), {
+    // Store complete user data in Firestore
+    const userData = {
+      uid,
       email,
       username,
       createdAt: new Date().toISOString(),
-      role: 'user'
-    });
+      lastLogin: new Date().toISOString(),
+      role: 'user',
+      profileComplete: false,
+      status: 'active'
+    };
 
-    // Store username separately for uniqueness check
-    await setDoc(doc(db, 'usernames', username), {
-      uid: userCredential.user.uid
-    });
+    await setDoc(doc(db, 'users', uid), userData);
 
     // Login the user after registration
     await loginUser(email, password);
@@ -83,12 +84,21 @@ export const getUserProfile = async (uid: string) => {
   return userDoc.data();
 };
 
-export const updateUserProfile = async (uid: string, data: { username?: string }) => {
+export const updateUserProfile = async (uid: string, data: { 
+  username?: string;
+  bio?: string;
+  phoneNumber?: string;
+  location?: string;
+  website?: string;
+}) => {
   const userRef = doc(db, 'users', uid);
-  await updateDoc(userRef, data);
+  await updateDoc(userRef, {
+    ...data,
+    updatedAt: new Date().toISOString(),
+    profileComplete: true
+  });
   
   if (data.username) {
-    // Update username in auth profile
     const user = auth.currentUser;
     if (user) {
       await updateProfile(user, {
