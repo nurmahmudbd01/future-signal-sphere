@@ -9,7 +9,7 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyD0-woWJiIZcyLizZP3PGwANIGNvKJ8TYA",
@@ -56,20 +56,40 @@ export const registerUser = async (email: string, password: string, username: st
     return userCredential.user;
   } catch (error: any) {
     if (error.code === 'auth/email-already-in-use') {
-      throw new Error('Email is already registered');
+      throw new Error('This email address is already registered.');
     }
-    throw error;
+    throw new Error('Failed to create account. Please try again.');
   }
 };
 
 export const loginUser = async (email: string, password: string) => {
-  const result = await signInWithEmailAndPassword(auth, email, password);
-  // Get user profile data
-  const userDoc = await getDoc(doc(db, 'users', result.user.uid));
-  if (!userDoc.exists()) {
-    throw new Error('User profile not found');
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    const userDoc = await getDoc(doc(db, 'users', result.user.uid));
+    if (!userDoc.exists()) {
+      throw new Error('User profile not found');
+    }
+    
+    // Update last login time
+    await updateDoc(doc(db, 'users', result.user.uid), {
+      lastLogin: new Date().toISOString()
+    });
+
+    return result;
+  } catch (error: any) {
+    switch (error.code) {
+      case 'auth/invalid-credential':
+      case 'auth/user-not-found':
+      case 'auth/wrong-password':
+        throw new Error('Invalid email or password. Please check your credentials and try again.');
+      case 'auth/too-many-requests':
+        throw new Error('Too many failed login attempts. Please try again later.');
+      case 'auth/user-disabled':
+        throw new Error('This account has been disabled. Please contact support.');
+      default:
+        throw new Error('Failed to log in. Please try again.');
+    }
   }
-  return result;
 };
 
 export const logoutUser = async () => {
@@ -84,18 +104,107 @@ export const getUserProfile = async (uid: string) => {
   return userDoc.data();
 };
 
-export const updateUserProfile = async (uid: string, data: { 
-  username?: string;
+// Add new functions for premium access
+export interface PaymentMethod {
+  id: string;
+  name: string;
+  type: 'crypto' | 'bkash' | 'local';
+  instructions: string;
+  accountDetails: string;
+  isActive: boolean;
+}
+
+export interface PaymentRequest {
+  id: string;
+  userId: string;
+  amount: number;
+  paymentMethodId: string;
+  transactionId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  updatedAt: string;
+  message?: string;
+}
+
+export const createPaymentRequest = async (
+  userId: string,
+  paymentMethodId: string,
+  transactionId: string,
+  amount: number,
+  message?: string
+) => {
+  const paymentRequest: PaymentRequest = {
+    id: `PR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    userId,
+    paymentMethodId,
+    transactionId,
+    amount,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    message
+  };
+
+  await setDoc(doc(db, 'paymentRequests', paymentRequest.id), paymentRequest);
+  return paymentRequest;
+};
+
+export const getUserSubscription = async (userId: string) => {
+  const userDoc = await getDoc(doc(db, 'users', userId));
+  if (!userDoc.exists()) {
+    throw new Error('User not found');
+  }
+
+  const userData = userDoc.data();
+  return {
+    isPremium: userData.premiumExpiresAt ? new Date(userData.premiumExpiresAt) > new Date() : false,
+    expiresAt: userData.premiumExpiresAt
+  };
+};
+
+export const getUserPaymentRequests = async (userId: string) => {
+  const requestDocs = await getDocs(
+    query(
+      collection(db, 'paymentRequests'), 
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    )
+  );
+  
+  return requestDocs.docs.map(doc => doc.data() as PaymentRequest);
+};
+
+export const getPaymentMethods = async () => {
+  const methodDocs = await getDocs(
+    query(
+      collection(db, 'paymentMethods'),
+      where('isActive', '==', true)
+    )
+  );
+  
+  return methodDocs.docs.map(doc => doc.data() as PaymentMethod);
+};
+
+interface UserProfile {
+  email: string;
+  username: string;
+  role: string;
+  createdAt: string;
+  lastLogin: string;
+  premiumExpiresAt?: string;
   bio?: string;
   phoneNumber?: string;
   location?: string;
   website?: string;
-}) => {
+  status: 'active' | 'suspended';
+  profileComplete: boolean;
+}
+
+export const updateUserProfile = async (uid: string, data: Partial<UserProfile>) => {
   const userRef = doc(db, 'users', uid);
   await updateDoc(userRef, {
     ...data,
-    updatedAt: new Date().toISOString(),
-    profileComplete: true
+    updatedAt: new Date().toISOString()
   });
   
   if (data.username) {
@@ -106,16 +215,4 @@ export const updateUserProfile = async (uid: string, data: {
       });
     }
   }
-};
-
-export const updateUserPassword = async (currentPassword: string, newPassword: string) => {
-  const user = auth.currentUser;
-  if (!user || !user.email) throw new Error('No user logged in');
-
-  // Re-authenticate user before password change
-  const credential = EmailAuthProvider.credential(user.email, currentPassword);
-  await reauthenticateWithCredential(user, credential);
-  
-  // Update password
-  await updatePassword(user, newPassword);
 };

@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -11,7 +10,7 @@ import { updateUserProfile, updateUserPassword } from "@/lib/firebase";
 import { User, Settings, Lock, Mail, MapPin, Globe, Phone } from "lucide-react";
 
 export default function Profile() {
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, subscription } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -94,6 +93,15 @@ export default function Profile() {
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">Account Settings</h1>
         <p className="text-muted-foreground">Manage your account settings and preferences</p>
+        {subscription?.isPremium && (
+          <div className="mt-4 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+            <h2 className="text-lg font-semibold text-green-600 mb-2">Premium Member</h2>
+            <p className="text-sm text-green-600">
+              Your premium access expires on{' '}
+              {new Date(subscription.expiresAt!).toLocaleDateString()}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-12 gap-6">

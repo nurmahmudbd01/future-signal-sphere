@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignalCard } from "@/components/SignalCard";
@@ -6,8 +5,16 @@ import { Signal, SignalStatus } from "@/types/signal";
 import { getAllStoredSignals } from "@/utils/signalUtils";
 import { SignalSearchAndFilter } from "@/components/SignalSearchAndFilter";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { createPaymentRequest, PaymentMethod, getPaymentMethods } from "@/lib/firebase";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription, Label, Input, Check } from "@/components/ui/card";
 
 export default function Premium() {
+  const { user, subscription } = useAuth();
+  const { toast } = useToast();
   const [signals, setSignals] = useState<Signal[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SignalStatus | 'all'>('all');
@@ -39,14 +46,146 @@ export default function Premium() {
     return () => window.removeEventListener('storage', loadSignals);
   }, []);
 
-  // Filter signals based on search and status
+  const { data: paymentMethods } = useQuery({
+    queryKey: ['paymentMethods'],
+    queryFn: getPaymentMethods
+  });
+
+  if (!user) {
+    return (
+      <div className="container py-16 text-center">
+        <h1 className="text-3xl font-bold mb-4">Premium Access Required</h1>
+        <p className="mb-6">Please log in to access premium signals.</p>
+        <Link to="/auth">
+          <Button>Login / Register</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (!subscription?.isPremium) {
+    return (
+      <div className="container py-16">
+        <div className="max-w-2xl mx-auto text-center">
+          <h1 className="text-3xl font-bold mb-4">Upgrade to Premium</h1>
+          <p className="mb-8 text-muted-foreground">
+            Get access to exclusive premium signals and advanced features.
+          </p>
+          
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Premium Membership</CardTitle>
+              <CardDescription>30 days access to premium signals</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold mb-4">$49.99</div>
+              <ul className="space-y-2 mb-6">
+                <li className="flex items-center">
+                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  Access to all premium signals
+                </li>
+                <li className="flex items-center">
+                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  Early access to new signals
+                </li>
+                <li className="flex items-center">
+                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  Priority support
+                </li>
+              </ul>
+            </CardContent>
+            <CardFooter>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button className="w-full">Subscribe Now</Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Payment Methods</DialogTitle>
+                    <DialogDescription>
+                      Choose your preferred payment method to proceed.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    {paymentMethods?.map((method: PaymentMethod) => (
+                      <Card key={method.id} className="cursor-pointer hover:bg-accent">
+                        <CardHeader>
+                          <CardTitle className="text-lg">{method.name}</CardTitle>
+                          <CardDescription>{method.instructions}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="font-mono bg-muted p-2 rounded">{method.accountDetails}</p>
+                        </CardContent>
+                        <CardFooter>
+                          <form 
+                            className="w-full space-y-4"
+                            onSubmit={async (e) => {
+                              e.preventDefault();
+                              const formData = new FormData(e.currentTarget);
+                              const transactionId = formData.get('transactionId') as string;
+                              const message = formData.get('message') as string;
+
+                              try {
+                                await createPaymentRequest(
+                                  user.uid,
+                                  method.id,
+                                  transactionId,
+                                  49.99,
+                                  message
+                                );
+                                toast({
+                                  title: "Payment Request Submitted",
+                                  description: "We'll review your payment and activate your premium access soon.",
+                                });
+                              } catch (error) {
+                                toast({
+                                  variant: "destructive",
+                                  title: "Error",
+                                  description: "Failed to submit payment request. Please try again.",
+                                });
+                              }
+                            }}
+                          >
+                            <div className="space-y-2">
+                              <Label htmlFor="transactionId">Transaction ID</Label>
+                              <Input 
+                                id="transactionId" 
+                                name="transactionId" 
+                                required 
+                                placeholder="Enter your transaction ID"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="message">Message (Optional)</Label>
+                              <Input 
+                                id="message" 
+                                name="message" 
+                                placeholder="Any additional information"
+                              />
+                            </div>
+                            <Button type="submit" className="w-full">
+                              Submit Payment
+                            </Button>
+                          </form>
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   const filteredSignals = signals.filter(signal => {
     const matchesSearch = signal.id.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || signal.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  // Filter and search in closed signals separately
   const filteredClosedSignals = signals.filter(signal => {
     const matchesSearch = signal.id.toLowerCase().includes(searchQuery.toLowerCase());
     const isClosedSignal = signal.status === 'closed';
@@ -61,7 +200,6 @@ export default function Premium() {
     .filter(signal => signal.marketType === "Spot")
     .slice(0, visibleCount);
 
-  // Filter closed signals by market type
   const closedSignals = filteredClosedSignals
     .sort((a, b) => {
       const dateA = a.profitLoss?.closingTime ? new Date(a.profitLoss.closingTime) : new Date(0);
