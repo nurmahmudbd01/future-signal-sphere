@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
@@ -13,6 +12,7 @@ import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from "@/lib/firebase";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useEffect } from "react";
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState("signals");
@@ -20,31 +20,63 @@ export default function Admin() {
   const [editingMethod, setEditingMethod] = useState(null);
   const [showPaymentMethodDialog, setShowPaymentMethodDialog] = useState(false);
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasAccess, setHasAccess] = useState(false);
   const navigate = useNavigate();
 
   // Check admin access
   useEffect(() => {
     const checkAdminAccess = async () => {
-      if (!auth.currentUser) {
-        navigate('/');
-        return;
-      }
-
+      setIsLoading(true);
       try {
+        // Check if user is logged in
+        if (!auth.currentUser) {
+          toast.error("Please login to access this page");
+          navigate('/auth');
+          return;
+        }
+
+        // Check if user is admin
         const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
-        if (!userDoc.exists() || userDoc.data().role !== 'admin') {
+        if (!userDoc.exists()) {
+          toast.error("User not found");
+          navigate('/');
+          return;
+        }
+
+        const userData = userDoc.data();
+        if (userData.role !== 'admin') {
           toast.error("You don't have permission to access this page");
           navigate('/');
           return;
         }
+
+        setHasAccess(true);
       } catch (error) {
         console.error("Error checking admin access:", error);
+        toast.error("An error occurred while checking permissions");
         navigate('/');
+      } finally {
+        setIsLoading(false);
       }
     };
 
     checkAdminAccess();
   }, [navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="container py-16">
+        <div className="flex items-center justify-center">
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasAccess) {
+    return null; // Will redirect via useEffect
+  }
 
   // Load last 3 signals
   useEffect(() => {
