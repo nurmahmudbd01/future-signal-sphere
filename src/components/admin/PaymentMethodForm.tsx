@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -9,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { addDoc, collection, updateDoc, doc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { addDoc, collection, updateDoc, doc, getDoc } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
+import { useNavigate } from "react-router-dom";
 
-// Enhanced validation schema
 const paymentMethodSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   type: z.enum(["crypto", "bkash", "local"], {
@@ -58,6 +57,30 @@ type PaymentMethodFormProps = {
 
 export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: PaymentMethodFormProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkAdminAccess = async () => {
+      if (!auth.currentUser) {
+        onCancel();
+        return;
+      }
+
+      try {
+        const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+        if (!userDoc.exists() || userDoc.data().role !== 'admin') {
+          toast.error("You don't have permission to modify payment methods");
+          onCancel();
+          return;
+        }
+      } catch (error) {
+        console.error("Error checking admin access:", error);
+        onCancel();
+      }
+    };
+
+    checkAdminAccess();
+  }, [onCancel]);
 
   const form = useForm<z.infer<typeof paymentMethodSchema>>({
     resolver: zodResolver(paymentMethodSchema),
@@ -79,6 +102,11 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
   const onSubmit = async (data: z.infer<typeof paymentMethodSchema>) => {
     setIsLoading(true);
     try {
+      const userDoc = await getDoc(doc(db, 'users', auth.currentUser?.uid || ''));
+      if (!userDoc.exists() || userDoc.data().role !== 'admin') {
+        throw new Error("Insufficient permissions");
+      }
+
       const paymentMethodData: PaymentMethodData = {
         ...data,
         isActive: true,
@@ -90,7 +118,6 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
         await updateDoc(docRef, paymentMethodData);
         toast.success("Payment method updated successfully");
       } else {
-        // For new payment methods, include createdAt
         const newPaymentMethod: PaymentMethodData = {
           ...paymentMethodData,
           createdAt: new Date().toISOString(),
@@ -105,7 +132,11 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
       onSuccess();
     } catch (error: any) {
       console.error("Payment method save error:", error);
-      toast.error(error.message || "Failed to save payment method");
+      if (error.message.includes("permission") || error.code === "permission-denied") {
+        toast.error("You don't have permission to modify payment methods");
+      } else {
+        toast.error(error.message || "Failed to save payment method");
+      }
     } finally {
       setIsLoading(false);
     }

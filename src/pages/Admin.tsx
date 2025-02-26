@@ -9,8 +9,10 @@ import { SignalCard } from "@/components/SignalCard";
 import { Signal } from "@/types/signal";
 import { PaymentMethodForm } from "@/components/admin/PaymentMethodForm";
 import { PaymentRequests } from "@/components/admin/PaymentRequests";
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from "@/lib/firebase";
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { db, auth } from "@/lib/firebase";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState("signals");
@@ -18,6 +20,31 @@ export default function Admin() {
   const [editingMethod, setEditingMethod] = useState(null);
   const [showPaymentMethodDialog, setShowPaymentMethodDialog] = useState(false);
   const [signals, setSignals] = useState<Signal[]>([]);
+  const navigate = useNavigate();
+
+  // Check admin access
+  useEffect(() => {
+    const checkAdminAccess = async () => {
+      if (!auth.currentUser) {
+        navigate('/');
+        return;
+      }
+
+      try {
+        const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+        if (!userDoc.exists() || userDoc.data().role !== 'admin') {
+          toast.error("You don't have permission to access this page");
+          navigate('/');
+          return;
+        }
+      } catch (error) {
+        console.error("Error checking admin access:", error);
+        navigate('/');
+      }
+    };
+
+    checkAdminAccess();
+  }, [navigate]);
 
   // Load last 3 signals
   useEffect(() => {
@@ -25,7 +52,7 @@ export default function Admin() {
       const storedSignals = localStorage.getItem('signals');
       if (storedSignals) {
         const allSignals = JSON.parse(storedSignals);
-        setSignals(allSignals.slice(-3)); // Get only the last 3 signals
+        setSignals(allSignals.slice(-3));
       }
     };
 
@@ -36,11 +63,16 @@ export default function Admin() {
 
   // Fetch payment methods
   const fetchPaymentMethods = async () => {
-    const methodsSnapshot = await getDocs(collection(db, 'paymentMethods'));
-    setPaymentMethods(methodsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })));
+    try {
+      const methodsSnapshot = await getDocs(collection(db, 'paymentMethods'));
+      setPaymentMethods(methodsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })));
+    } catch (error) {
+      console.error("Error fetching payment methods:", error);
+      toast.error("Failed to load payment methods");
+    }
   };
 
   useEffect(() => {
