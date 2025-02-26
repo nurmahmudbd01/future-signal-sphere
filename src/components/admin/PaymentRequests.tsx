@@ -11,13 +11,27 @@ export function PaymentRequests() {
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchRequests = async () => {
-    const requestsSnapshot = await getDocs(
-      query(collection(db, 'paymentRequests'), where('status', '==', 'pending'))
-    );
-    setRequests(requestsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })));
+    try {
+      const requestsSnapshot = await getDocs(
+        query(collection(db, 'paymentRequests'), where('status', '==', 'pending'))
+      );
+      const requestsData = [];
+      
+      // Fetch user data for each request
+      for (const doc of requestsSnapshot.docs) {
+        const request = { id: doc.id, ...doc.data() };
+        const userDoc = await getDoc(doc(db, 'users', request.userId));
+        requestsData.push({
+          ...request,
+          user: userDoc.exists() ? { id: userDoc.id, ...userDoc.data() } : null,
+        });
+      }
+      
+      setRequests(requestsData);
+    } catch (error) {
+      console.error("Error fetching requests:", error);
+      toast.error("Failed to load payment requests");
+    }
   };
 
   useEffect(() => {
@@ -31,6 +45,11 @@ export function PaymentRequests() {
       const requestDoc = await getDoc(requestRef);
       const request = requestDoc.data();
 
+      if (!request) {
+        throw new Error("Request not found");
+      }
+
+      // Update request status
       await updateDoc(requestRef, {
         status,
         updatedAt: new Date().toISOString(),
@@ -38,17 +57,30 @@ export function PaymentRequests() {
 
       if (status === 'approved') {
         const userRef = doc(db, 'users', request.userId);
+        const userDoc = await getDoc(userRef);
+        
+        if (!userDoc.exists()) {
+          throw new Error("User not found");
+        }
+
+        // Calculate premium expiration date (1 month from now)
         const expiryDate = new Date();
         expiryDate.setMonth(expiryDate.getMonth() + 1);
-        
+
+        // Update user document with premium status and expiration
         await updateDoc(userRef, {
           premiumExpiresAt: expiryDate.toISOString(),
+          updatedAt: new Date().toISOString(),
         });
+
+        toast.success("Payment approved and premium access granted");
+      } else {
+        toast.success("Payment request rejected");
       }
 
-      toast.success(`Payment ${status}`);
       fetchRequests();
     } catch (error) {
+      console.error("Error updating payment status:", error);
       toast.error("Failed to update payment status");
     }
     setIsLoading(false);
@@ -70,7 +102,7 @@ export function PaymentRequests() {
               <div className="space-y-2">
                 <p><strong>Amount:</strong> ${request.amount}</p>
                 <p><strong>Transaction ID:</strong> {request.transactionId}</p>
-                <p><strong>User ID:</strong> {request.userId}</p>
+                <p><strong>User:</strong> {request.user?.username || request.userId}</p>
                 {request.message && (
                   <p><strong>Message:</strong> {request.message}</p>
                 )}
