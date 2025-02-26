@@ -12,16 +12,36 @@ import { toast } from "sonner";
 import { addDoc, collection, updateDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+// Enhanced validation schema
 const paymentMethodSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  type: z.enum(["crypto", "bkash", "local"]),
-  instructions: z.string().min(1, "Instructions are required"),
-  accountDetails: z.string().min(1, "Account details are required"),
+  name: z.string().min(3, "Name must be at least 3 characters"),
+  type: z.enum(["crypto", "bkash", "local"], {
+    required_error: "Please select a payment type",
+  }),
+  instructions: z.string().min(10, "Instructions must be detailed enough"),
+  accountDetails: z.string().min(5, "Account details are required"),
   network: z.string().optional(),
   token: z.string().optional(),
   minimumAmount: z.string().optional(),
   processingTime: z.string().optional(),
   additionalDetails: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.type === 'crypto') {
+    if (!data.network) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Network is required for crypto payments",
+        path: ['network'],
+      });
+    }
+    if (!data.token) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Token is required for crypto payments",
+        path: ['token'],
+      });
+    }
+  }
 });
 
 type PaymentMethodFormProps = {
@@ -33,7 +53,7 @@ type PaymentMethodFormProps = {
 export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: PaymentMethodFormProps) {
   const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm({
+  const form = useForm<z.infer<typeof paymentMethodSchema>>({
     resolver: zodResolver(paymentMethodSchema),
     defaultValues: editingMethod || {
       name: "",
@@ -53,25 +73,32 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
   const onSubmit = async (data: z.infer<typeof paymentMethodSchema>) => {
     setIsLoading(true);
     try {
+      const paymentMethodData = {
+        ...data,
+        isActive: true,
+        updatedAt: new Date().toISOString(),
+      };
+
       if (editingMethod) {
-        await updateDoc(doc(db, 'paymentMethods', editingMethod.id), {
-          ...data,
-          updatedAt: new Date().toISOString(),
-        });
+        const docRef = doc(db, 'paymentMethods', editingMethod.id);
+        await updateDoc(docRef, paymentMethodData);
+        toast.success("Payment method updated successfully");
       } else {
-        await addDoc(collection(db, 'paymentMethods'), {
-          ...data,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
+        paymentMethodData.createdAt = new Date().toISOString();
+        const docRef = await addDoc(collection(db, 'paymentMethods'), paymentMethodData);
+        if (!docRef.id) {
+          throw new Error('Failed to create payment method');
+        }
+        toast.success("Payment method created successfully");
       }
-      toast.success(editingMethod ? "Payment method updated" : "Payment method created");
+      
       onSuccess();
-    } catch (error) {
-      toast.error("Failed to save payment method");
+    } catch (error: any) {
+      console.error("Payment method save error:", error);
+      toast.error(error.message || "Failed to save payment method");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
@@ -82,7 +109,7 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel>Name *</FormLabel>
               <FormControl>
                 <Input placeholder="e.g., Bitcoin Payment" {...field} />
               </FormControl>
@@ -90,12 +117,13 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
             </FormItem>
           )}
         />
+        
         <FormField
           control={form.control}
           name="type"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Type</FormLabel>
+              <FormLabel>Type *</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
@@ -120,7 +148,7 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
               name="network"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Network</FormLabel>
+                  <FormLabel>Network *</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., BEP20, ERC20, TRC20" {...field} />
                   </FormControl>
@@ -133,7 +161,7 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
               name="token"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Token</FormLabel>
+                  <FormLabel>Token *</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., USDT, BTC, ETH" {...field} />
                   </FormControl>
@@ -149,7 +177,7 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
           name="instructions"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Payment Instructions</FormLabel>
+              <FormLabel>Payment Instructions *</FormLabel>
               <FormControl>
                 <Textarea 
                   placeholder="Enter detailed payment instructions..."
@@ -167,7 +195,7 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
           name="accountDetails"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Account Details</FormLabel>
+              <FormLabel>Account Details *</FormLabel>
               <FormControl>
                 <Input placeholder="e.g., Wallet address or account number" {...field} />
               </FormControl>
