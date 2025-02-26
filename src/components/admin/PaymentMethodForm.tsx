@@ -44,8 +44,14 @@ const paymentMethodSchema = z.object({
   }
 });
 
+type PaymentMethodData = z.infer<typeof paymentMethodSchema> & {
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt: string;
+};
+
 type PaymentMethodFormProps = {
-  editingMethod?: any;
+  editingMethod?: PaymentMethodData & { id: string };
   onSuccess: () => void;
   onCancel: () => void;
 };
@@ -73,7 +79,7 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
   const onSubmit = async (data: z.infer<typeof paymentMethodSchema>) => {
     setIsLoading(true);
     try {
-      const paymentMethodData = {
+      const paymentMethodData: PaymentMethodData = {
         ...data,
         isActive: true,
         updatedAt: new Date().toISOString(),
@@ -84,8 +90,12 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
         await updateDoc(docRef, paymentMethodData);
         toast.success("Payment method updated successfully");
       } else {
-        paymentMethodData.createdAt = new Date().toISOString();
-        const docRef = await addDoc(collection(db, 'paymentMethods'), paymentMethodData);
+        // For new payment methods, include createdAt
+        const newPaymentMethod: PaymentMethodData = {
+          ...paymentMethodData,
+          createdAt: new Date().toISOString(),
+        };
+        const docRef = await addDoc(collection(db, 'paymentMethods'), newPaymentMethod);
         if (!docRef.id) {
           throw new Error('Failed to create payment method');
         }
