@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createPaymentRequest, PaymentMethod, getPaymentMethods } from "@/lib/firebase";
+import { getAllStoredSignals } from "@/utils/signalUtils"; // Add this import
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
