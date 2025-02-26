@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignalCard } from "@/components/SignalCard";
 import { Signal, SignalStatus } from "@/types/signal";
-import { getAllStoredSignals } from "@/utils/signalUtils";
 import { SignalSearchAndFilter } from "@/components/SignalSearchAndFilter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,7 +9,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { createPaymentRequest, PaymentMethod, getPaymentMethods } from "@/lib/firebase";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription, Label, Input, Check } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CheckCircle } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function Premium() {
   const { user, subscription } = useAuth();
@@ -81,15 +84,15 @@ export default function Premium() {
               <div className="text-4xl font-bold mb-4">$49.99</div>
               <ul className="space-y-2 mb-6">
                 <li className="flex items-center">
-                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
                   Access to all premium signals
                 </li>
                 <li className="flex items-center">
-                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
                   Early access to new signals
                 </li>
                 <li className="flex items-center">
-                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
                   Priority support
                 </li>
               </ul>

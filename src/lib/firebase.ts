@@ -5,7 +5,7 @@ import {
   signInWithEmailAndPassword, 
   signOut, 
   updateProfile,
-  updatePassword,
+  updatePassword as firebaseUpdatePassword,
   EmailAuthProvider,
   reauthenticateWithCredential
 } from 'firebase/auth';
@@ -213,6 +213,31 @@ export const updateUserProfile = async (uid: string, data: Partial<UserProfile>)
       await updateProfile(user, {
         displayName: data.username
       });
+    }
+  }
+};
+
+export const updateUserPassword = async (currentPassword: string, newPassword: string) => {
+  const user = auth.currentUser;
+  if (!user || !user.email) {
+    throw new Error('No user logged in');
+  }
+
+  try {
+    // Re-authenticate user before password change
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+    
+    // Update password
+    await firebaseUpdatePassword(user, newPassword);
+  } catch (error: any) {
+    switch (error.code) {
+      case 'auth/wrong-password':
+        throw new Error('Current password is incorrect');
+      case 'auth/weak-password':
+        throw new Error('New password must be at least 6 characters long');
+      default:
+        throw new Error('Failed to update password. Please try again.');
     }
   }
 };
