@@ -17,6 +17,11 @@ const paymentMethodSchema = z.object({
   type: z.enum(["crypto", "bkash", "local"]),
   instructions: z.string().min(1, "Instructions are required"),
   accountDetails: z.string().min(1, "Account details are required"),
+  network: z.string().optional(),
+  token: z.string().optional(),
+  minimumAmount: z.string().optional(),
+  processingTime: z.string().optional(),
+  additionalDetails: z.string().optional(),
 });
 
 type PaymentMethodFormProps = {
@@ -35,8 +40,15 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
       type: "crypto",
       instructions: "",
       accountDetails: "",
+      network: "",
+      token: "",
+      minimumAmount: "",
+      processingTime: "",
+      additionalDetails: "",
     },
   });
+
+  const paymentType = form.watch("type");
 
   const onSubmit = async (data: z.infer<typeof paymentMethodSchema>) => {
     setIsLoading(true);
@@ -100,6 +112,38 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
             </FormItem>
           )}
         />
+
+        {paymentType === "crypto" && (
+          <>
+            <FormField
+              control={form.control}
+              name="network"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Network</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., BEP20, ERC20, TRC20" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="token"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Token</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., USDT, BTC, ETH" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
+        )}
+
         <FormField
           control={form.control}
           name="instructions"
@@ -108,7 +152,7 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
               <FormLabel>Payment Instructions</FormLabel>
               <FormControl>
                 <Textarea 
-                  placeholder="Enter payment instructions..."
+                  placeholder="Enter detailed payment instructions..."
                   className="min-h-[100px]"
                   {...field}
                 />
@@ -117,6 +161,7 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="accountDetails"
@@ -130,6 +175,53 @@ export function PaymentMethodForm({ editingMethod, onSuccess, onCancel }: Paymen
             </FormItem>
           )}
         />
+
+        <FormField
+          control={form.control}
+          name="minimumAmount"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Minimum Amount</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., $10" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="processingTime"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Processing Time</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., 1-2 business days" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="additionalDetails"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Additional Details</FormLabel>
+              <FormControl>
+                <Textarea 
+                  placeholder="Any additional information..."
+                  className="min-h-[100px]"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <div className="flex gap-2">
           <Button type="submit" className="flex-1" disabled={isLoading}>
             {isLoading ? "Saving..." : (editingMethod ? "Update Method" : "Add Method")}
