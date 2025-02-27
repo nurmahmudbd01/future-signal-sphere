@@ -10,7 +10,7 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyD0-woWJiIZcyLizZP3PGwANIGNvKJ8TYA",
@@ -22,6 +22,7 @@ const firebaseConfig = {
   measurementId: "G-0FCY7G1PCX"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
@@ -32,38 +33,52 @@ export const registerUser = async (email: string, password: string, username: st
   }
   
   try {
+    console.log("Starting user registration process...");
+    
+    // Step 1: Create user in Firebase Authentication
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+    
+    console.log("User created in Authentication:", user.uid);
     
     if (!user || !user.uid) {
       throw new Error('User creation failed');
     }
     
+    // Step 2: Update the user profile in Authentication
     await updateProfile(user, {
       displayName: username
     });
     
+    console.log("User profile updated with displayName:", username);
+    
+    // Step 3: Create user document in Firestore
     const userData = {
       uid: user.uid,
       email: user.email,
       username,
       createdAt: new Date().toISOString(),
       lastLogin: new Date().toISOString(),
-      role: 'user', // Default role is 'user'
+      role: 'user',
       profileComplete: false,
       status: 'active'
     };
     
     try {
+      // Use user.uid as document ID in the 'users' collection
       const userDocRef = doc(db, 'users', user.uid);
+      
+      console.log("Attempting to write user data to Firestore...");
+      
+      // Set the document data with merge option to avoid overwriting
       await setDoc(userDocRef, userData);
-      console.log("User registered successfully:", user.uid);
-      console.log("User data saved to Firestore:", userData);
+      
+      console.log("User data successfully written to Firestore");
+      
       return user;
     } catch (firestoreError) {
-      console.error("Error saving user data to Firestore:", firestoreError);
-      // Even if Firestore fails, the user is still created in Authentication
-      // We return the user so they can at least sign in
+      console.error("Firestore error during registration:", firestoreError);
+      // Even if Firestore fails, we return the user since they are authenticated
       return user;
     }
   } catch (error: any) {
@@ -89,6 +104,9 @@ export const loginUser = async (email: string, password: string) => {
   }
   
   try {
+    console.log("Starting login process for:", email);
+    
+    // Step 1: Sign in with Firebase Authentication
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
@@ -96,17 +114,22 @@ export const loginUser = async (email: string, password: string) => {
       throw new Error('Login failed');
     }
     
+    console.log("User authenticated successfully:", user.uid);
+    
+    // Step 2: Update the Firestore user document
     try {
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
       
       if (userDoc.exists()) {
+        console.log("User document found in Firestore, updating lastLogin");
+        // Update last login time for existing user
         await updateDoc(userDocRef, {
           lastLogin: new Date().toISOString()
         });
       } else {
-        // Create user document if it doesn't exist in Firestore
-        // This is a fallback in case registerUser failed to create the document
+        console.log("User document not found in Firestore, creating new document");
+        // Create a new user document if it doesn't exist in Firestore
         const userData = {
           uid: user.uid,
           email: user.email,
@@ -119,14 +142,14 @@ export const loginUser = async (email: string, password: string) => {
         };
         
         await setDoc(userDocRef, userData);
-        console.log("Created missing user document in Firestore:", userData);
+        console.log("Created missing user document in Firestore");
       }
     } catch (firestoreError) {
-      console.error("Error updating user data in Firestore:", firestoreError);
-      // We continue even if Firestore update fails
+      console.error("Firestore error during login:", firestoreError);
+      // We continue even if Firestore update fails, since the auth part was successful
     }
     
-    console.log("User logged in successfully:", user.uid);
+    console.log("Login process completed successfully");
     return userCredential;
   } catch (error: any) {
     console.error("Login error:", error);
@@ -148,21 +171,25 @@ export const loginUser = async (email: string, password: string) => {
 };
 
 export const logoutUser = async () => {
+  console.log("Logging out user");
   return signOut(auth);
 };
 
 export const getUserProfile = async (uid: string) => {
   try {
+    console.log("Fetching user profile for:", uid);
     const userDoc = await getDoc(doc(db, 'users', uid));
     
     if (!userDoc.exists()) {
       console.log("User document doesn't exist in Firestore, creating it now");
       
+      // Get user from Authentication
       const user = auth.currentUser;
       if (!user) {
         throw new Error('No authenticated user found');
       }
       
+      // Create a new user document
       const userData = {
         uid: user.uid,
         email: user.email,
@@ -174,10 +201,13 @@ export const getUserProfile = async (uid: string) => {
         status: 'active'
       };
       
+      console.log("Creating new user document in Firestore");
       await setDoc(doc(db, 'users', uid), userData);
+      console.log("New user document created successfully");
       return userData;
     }
     
+    console.log("User profile retrieved successfully");
     return userDoc.data();
   } catch (error) {
     console.error("Error fetching user profile:", error);
@@ -230,7 +260,9 @@ export const createPaymentRequest = async (
   };
 
   try {
+    console.log("Creating payment request:", paymentRequest);
     await setDoc(doc(db, 'paymentRequests', paymentRequest.id), paymentRequest);
+    console.log("Payment request created successfully");
     return paymentRequest;
   } catch (error) {
     console.error("Error creating payment request:", error);
@@ -240,14 +272,19 @@ export const createPaymentRequest = async (
 
 export const getUserSubscription = async (userId: string) => {
   try {
+    console.log("Checking subscription status for user:", userId);
     const userDoc = await getDoc(doc(db, 'users', userId));
     if (!userDoc.exists()) {
       throw new Error('User not found');
     }
 
     const userData = userDoc.data();
+    const isPremium = userData.premiumExpiresAt ? new Date(userData.premiumExpiresAt) > new Date() : false;
+    
+    console.log("User premium status:", isPremium, "Expires:", userData.premiumExpiresAt || "N/A");
+    
     return {
-      isPremium: userData.premiumExpiresAt ? new Date(userData.premiumExpiresAt) > new Date() : false,
+      isPremium,
       expiresAt: userData.premiumExpiresAt
     };
   } catch (error) {
@@ -265,6 +302,7 @@ export const getUserPaymentRequests = async (userId: string) => {
   }
 
   try {
+    console.log("Fetching payment requests for user:", userId);
     const requestDocs = await getDocs(
       query(
         collection(db, 'paymentRequests'), 
@@ -273,7 +311,10 @@ export const getUserPaymentRequests = async (userId: string) => {
       )
     );
     
-    return requestDocs.docs.map(doc => doc.data() as PaymentRequest);
+    const requests = requestDocs.docs.map(doc => doc.data() as PaymentRequest);
+    console.log(`Found ${requests.length} payment requests`);
+    
+    return requests;
   } catch (error) {
     console.error("Error fetching payment requests:", error);
     throw new Error('Failed to fetch payment requests');
@@ -282,6 +323,7 @@ export const getUserPaymentRequests = async (userId: string) => {
 
 export const getPaymentMethods = async () => {
   try {
+    console.log("Fetching payment methods");
     const methodDocs = await getDocs(
       query(
         collection(db, 'paymentMethods'),
@@ -289,10 +331,13 @@ export const getPaymentMethods = async () => {
       )
     );
     
-    return methodDocs.docs.map(doc => ({
+    const methods = methodDocs.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }) as PaymentMethod);
+    
+    console.log(`Found ${methods.length} payment methods`);
+    return methods;
   } catch (error) {
     console.error("Error fetching payment methods:", error);
     throw new Error('Failed to fetch payment methods');
@@ -325,20 +370,47 @@ export const updateUserProfile = async (uid: string, data: Partial<UserProfile>)
   }
 
   try {
+    console.log("Updating user profile for:", uid, "with data:", data);
     const userRef = doc(db, 'users', uid);
-    await updateDoc(userRef, {
-      ...data,
-      updatedAt: new Date().toISOString()
-    });
     
+    // Check if document exists first
+    const docSnap = await getDoc(userRef);
+    if (!docSnap.exists()) {
+      console.log("User document doesn't exist, creating it before update");
+      // Create the document if it doesn't exist
+      const userData = {
+        uid,
+        email: auth.currentUser.email,
+        username: auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'User',
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        role: 'user',
+        profileComplete: false,
+        status: 'active',
+        ...data,
+        updatedAt: new Date().toISOString()
+      };
+      await setDoc(userRef, userData);
+    } else {
+      console.log("User document exists, updating it");
+      await updateDoc(userRef, {
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+    }
+    
+    // Update display name in Authentication if username is provided
     if (data.username) {
       const user = auth.currentUser;
       if (user) {
+        console.log("Updating display name in Authentication to:", data.username);
         await updateProfile(user, {
           displayName: data.username
         });
       }
     }
+    
+    console.log("Profile update completed successfully");
   } catch (error) {
     console.error("Error updating profile:", error);
     throw new Error('Failed to update profile. Please try again.');
@@ -352,11 +424,15 @@ export const updateUserPassword = async (currentPassword: string, newPassword: s
   }
 
   try {
+    console.log("Starting password update process");
     const credential = EmailAuthProvider.credential(user.email, currentPassword);
     await reauthenticateWithCredential(user, credential);
     
+    console.log("User reauthenticated successfully, updating password");
     await firebaseUpdatePassword(user, newPassword);
+    console.log("Password updated successfully");
   } catch (error: any) {
+    console.error("Error updating password:", error);
     switch (error.code) {
       case 'auth/wrong-password':
         throw new Error('Current password is incorrect');

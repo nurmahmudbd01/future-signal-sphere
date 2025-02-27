@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -10,13 +11,13 @@ import { updateUserProfile, updateUserPassword } from "@/lib/firebase";
 import { User, Settings, Lock, Mail, MapPin, Globe, Phone } from "lucide-react";
 
 export default function Profile() {
-  const { user, userProfile, subscription } = useAuth();
+  const { user, userProfile, subscription, refreshUserProfile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<'profile' | 'security'>('profile');
 
-  if (!user || !userProfile) {
+  if (!user) {
     navigate('/auth');
     return null;
   }
@@ -36,11 +37,14 @@ export default function Profile() {
 
     try {
       await updateUserProfile(user.uid, profileData);
+      await refreshUserProfile(); // Refresh user data after update
+      
       toast({
         title: "Profile Updated",
         description: "Your profile has been successfully updated.",
       });
     } catch (error) {
+      console.error("Profile update error:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -78,6 +82,7 @@ export default function Profile() {
       });
       (e.target as HTMLFormElement).reset();
     } catch (error) {
+      console.error("Password update error:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -153,7 +158,7 @@ export default function Profile() {
                       <Input 
                         id="username" 
                         name="username" 
-                        defaultValue={userProfile.username} 
+                        defaultValue={userProfile?.username || user.displayName || ''} 
                         required 
                       />
                     </div>
@@ -163,7 +168,7 @@ export default function Profile() {
                     <Input 
                       id="bio" 
                       name="bio" 
-                      defaultValue={userProfile.bio || ''} 
+                      defaultValue={userProfile?.bio || ''} 
                       placeholder="Tell us about yourself"
                     />
                   </div>
@@ -175,7 +180,7 @@ export default function Profile() {
                         <Input 
                           id="phoneNumber" 
                           name="phoneNumber" 
-                          defaultValue={userProfile.phoneNumber || ''} 
+                          defaultValue={userProfile?.phoneNumber || ''} 
                           placeholder="+1 (555) 000-0000"
                         />
                       </div>
@@ -187,7 +192,7 @@ export default function Profile() {
                         <Input 
                           id="location" 
                           name="location" 
-                          defaultValue={userProfile.location || ''} 
+                          defaultValue={userProfile?.location || ''} 
                           placeholder="City, Country"
                         />
                       </div>
@@ -200,7 +205,7 @@ export default function Profile() {
                       <Input 
                         id="website" 
                         name="website" 
-                        defaultValue={userProfile.website || ''} 
+                        defaultValue={userProfile?.website || ''} 
                         placeholder="https://yourwebsite.com"
                       />
                     </div>

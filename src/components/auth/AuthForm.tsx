@@ -42,27 +42,41 @@ export function AuthForm() {
       
       if (type === 'register') {
         const user = await registerUser(email, password, username);
-        console.log("Registration successful:", user);
+        console.log("Registration successful:", user?.uid);
         
         toast({
           title: "Account created!",
           description: "You have been automatically logged in.",
         });
+        
+        // Use a slight delay to ensure Firebase Auth state updates before redirecting
+        setTimeout(() => {
+          navigate('/', { replace: true });
+        }, 500);
       } else {
         const result = await loginUser(email, password);
-        console.log("Login successful:", result.user.uid);
+        console.log("Login successful:", result?.user?.uid);
         
         toast({
           title: "Welcome back!",
           description: "You've been successfully logged in.",
         });
+        
+        // Use a slight delay to ensure Firebase Auth state updates before redirecting
+        setTimeout(() => {
+          navigate('/', { replace: true });
+        }, 500);
       }
-      
-      // Navigate after successful auth
-      navigate('/', { replace: true });
     } catch (error: any) {
       console.error("Auth error:", error);
       setError(error.message || "Authentication failed. Please try again.");
+      
+      // Show toast with error message
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: error.message || "Authentication failed. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }
