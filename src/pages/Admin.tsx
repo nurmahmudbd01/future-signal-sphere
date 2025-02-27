@@ -14,6 +14,11 @@ import { db } from "@/lib/firebase";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { generateSignalId } from "@/utils/signalUtils";
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState("signals");
@@ -22,6 +27,8 @@ export default function Admin() {
   const [showPaymentMethodDialog, setShowPaymentMethodDialog] = useState(false);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showCreateSignalDialog, setShowCreateSignalDialog] = useState(false);
+  const [editingSignal, setEditingSignal] = useState<Signal | null>(null);
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
 
@@ -83,6 +90,109 @@ export default function Admin() {
     }
   };
 
+  const handleCreateUpdateSignal = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    const title = formData.get('title') as string;
+    const description = formData.get('description') as string;
+    const signalType = formData.get('signalType') as "Buy" | "Sell";
+    const marketType = formData.get('marketType') as "Future" | "Spot";
+    const blockchainType = formData.get('blockchainType') as string;
+    const entryPrice = formData.get('entryPrice') as string;
+    const targetPrice = formData.get('targetPrice') as string;
+    const stopLoss = formData.get('stopLoss') as string;
+    const displayLocation = formData.get('displayLocation') as "Main" | "Premium" | "Both";
+    
+    let signalData: Signal;
+    
+    if (editingSignal) {
+      // Update existing signal
+      signalData = {
+        ...editingSignal,
+        title,
+        description,
+        signalType,
+        marketType,
+        blockchainType: blockchainType as "Bitcoin" | "Ethereum" | "Solana" | "Other",
+        entryPrice,
+        targetPrice,
+        stopLoss,
+        displayLocation
+      };
+    } else {
+      // Create new signal
+      signalData = {
+        id: generateSignalId(),
+        title,
+        description,
+        signalType,
+        marketType,
+        blockchainType: blockchainType as "Bitcoin" | "Ethereum" | "Solana" | "Other",
+        entryPrice,
+        targetPrice,
+        stopLoss,
+        createdAt: new Date(),
+        displayLocation,
+        status: "pending",
+        approved: true
+      };
+    }
+    
+    // Get existing signals or initialize empty array
+    const storedSignals = JSON.parse(localStorage.getItem('signals') || '[]');
+    
+    if (editingSignal) {
+      // Update existing signal in array
+      const updatedSignals = storedSignals.map((signal: Signal) => 
+        signal.id === editingSignal.id ? signalData : signal
+      );
+      localStorage.setItem('signals', JSON.stringify(updatedSignals));
+    } else {
+      // Add new signal to array
+      storedSignals.push(signalData);
+      localStorage.setItem('signals', JSON.stringify(storedSignals));
+    }
+    
+    // Update state and close dialog
+    setSignals(storedSignals.slice(-3));
+    setShowCreateSignalDialog(false);
+    setEditingSignal(null);
+    
+    // Show success message
+    toast.success(editingSignal ? "Signal updated successfully" : "Signal created successfully");
+    
+    // Trigger storage event for other tabs
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleEditSignal = (signal: Signal) => {
+    setEditingSignal(signal);
+    setShowCreateSignalDialog(true);
+  };
+
+  const handleDeleteSignal = (signal: Signal) => {
+    if (window.confirm("Are you sure you want to delete this signal?")) {
+      // Get existing signals
+      const storedSignals = JSON.parse(localStorage.getItem('signals') || '[]');
+      
+      // Filter out the signal to delete
+      const updatedSignals = storedSignals.filter((s: Signal) => s.id !== signal.id);
+      
+      // Save updated array
+      localStorage.setItem('signals', JSON.stringify(updatedSignals));
+      
+      // Update state
+      setSignals(updatedSignals.slice(-3));
+      
+      // Show success message
+      toast.success("Signal deleted successfully");
+      
+      // Trigger storage event for other tabs
+      window.dispatchEvent(new Event('storage'));
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="container py-16">
@@ -113,9 +223,155 @@ export default function Admin() {
         <TabsContent value="signals">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-semibold">Recent Signals</h2>
-            <Button onClick={() => window.location.href = "/signals"}>
-              View All Signals
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => window.location.href = "/signals"}>
+                View All Signals
+              </Button>
+              <Dialog open={showCreateSignalDialog} onOpenChange={setShowCreateSignalDialog}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Create Signal
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {editingSignal ? "Edit Signal" : "Create New Signal"}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleCreateUpdateSignal} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="title">Title</Label>
+                      <Input 
+                        id="title" 
+                        name="title" 
+                        defaultValue={editingSignal?.title || ""} 
+                        required 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea 
+                        id="description" 
+                        name="description" 
+                        defaultValue={editingSignal?.description || ""} 
+                        required 
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="signalType">Signal Type</Label>
+                        <Select 
+                          name="signalType" 
+                          defaultValue={editingSignal?.signalType || "Buy"}
+                        >
+                          <SelectTrigger id="signalType">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Buy">Buy</SelectItem>
+                            <SelectItem value="Sell">Sell</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="marketType">Market Type</Label>
+                        <Select 
+                          name="marketType" 
+                          defaultValue={editingSignal?.marketType || "Future"}
+                        >
+                          <SelectTrigger id="marketType">
+                            <SelectValue placeholder="Select market" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Future">Future</SelectItem>
+                            <SelectItem value="Spot">Spot</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="blockchainType">Blockchain</Label>
+                      <Select 
+                        name="blockchainType" 
+                        defaultValue={editingSignal?.blockchainType || "Bitcoin"}
+                      >
+                        <SelectTrigger id="blockchainType">
+                          <SelectValue placeholder="Select blockchain" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Bitcoin">Bitcoin</SelectItem>
+                          <SelectItem value="Ethereum">Ethereum</SelectItem>
+                          <SelectItem value="Solana">Solana</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="entryPrice">Entry Price</Label>
+                        <Input 
+                          id="entryPrice" 
+                          name="entryPrice" 
+                          defaultValue={editingSignal?.entryPrice || ""} 
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="targetPrice">Target Price</Label>
+                        <Input 
+                          id="targetPrice" 
+                          name="targetPrice" 
+                          defaultValue={editingSignal?.targetPrice || ""} 
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="stopLoss">Stop Loss</Label>
+                        <Input 
+                          id="stopLoss" 
+                          name="stopLoss" 
+                          defaultValue={editingSignal?.stopLoss || ""} 
+                          required 
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="displayLocation">Display Location</Label>
+                      <Select 
+                        name="displayLocation" 
+                        defaultValue={editingSignal?.displayLocation || "Main"}
+                      >
+                        <SelectTrigger id="displayLocation">
+                          <SelectValue placeholder="Select location" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Main">Main (Free)</SelectItem>
+                          <SelectItem value="Premium">Premium Only</SelectItem>
+                          <SelectItem value="Both">Both</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex justify-end space-x-2 pt-4">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => {
+                          setShowCreateSignalDialog(false);
+                          setEditingSignal(null);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit">
+                        {editingSignal ? "Update Signal" : "Create Signal"}
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -124,6 +380,8 @@ export default function Admin() {
                 key={signal.id} 
                 signal={signal}
                 isAdmin
+                onEdit={handleEditSignal}
+                onDelete={handleDeleteSignal}
               />
             ))}
             {signals.length === 0 && (
