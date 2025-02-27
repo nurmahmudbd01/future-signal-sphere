@@ -1,13 +1,30 @@
 
 import { useState, useEffect } from "react";
-import { collection, query, where, getDocs, updateDoc, doc, getDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, updateDoc, doc, getDoc, DocumentData } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
+interface PaymentRequest {
+  id: string;
+  userId: string;
+  amount: number;
+  paymentMethodId: string;
+  transactionId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  updatedAt: string;
+  message?: string;
+  user?: {
+    id: string;
+    username: string;
+    [key: string]: any;
+  };
+}
+
 export function PaymentRequests() {
-  const [requests, setRequests] = useState([]);
+  const [requests, setRequests] = useState<PaymentRequest[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchRequests = async () => {
@@ -15,16 +32,27 @@ export function PaymentRequests() {
       const requestsSnapshot = await getDocs(
         query(collection(db, 'paymentRequests'), where('status', '==', 'pending'))
       );
-      const requestsData = [];
+      const requestsData: PaymentRequest[] = [];
       
       // Fetch user data for each request
-      for (const doc of requestsSnapshot.docs) {
-        const request = { id: doc.id, ...doc.data() };
-        const userDoc = await getDoc(doc(db, 'users', request.userId));
-        requestsData.push({
-          ...request,
-          user: userDoc.exists() ? { id: userDoc.id, ...userDoc.data() } : null,
-        });
+      for (const docSnapshot of requestsSnapshot.docs) {
+        const request = { id: docSnapshot.id, ...docSnapshot.data() } as PaymentRequest;
+        
+        // Only proceed if userId exists
+        if (request.userId) {
+          const userDoc = await getDoc(doc(db, 'users', request.userId));
+          
+          if (userDoc.exists()) {
+            requestsData.push({
+              ...request,
+              user: { id: userDoc.id, ...userDoc.data() as DocumentData }
+            });
+          } else {
+            requestsData.push(request);
+          }
+        } else {
+          requestsData.push(request);
+        }
       }
       
       setRequests(requestsData);
@@ -43,11 +71,12 @@ export function PaymentRequests() {
     try {
       const requestRef = doc(db, 'paymentRequests', requestId);
       const requestDoc = await getDoc(requestRef);
-      const request = requestDoc.data();
-
-      if (!request) {
+      
+      if (!requestDoc.exists()) {
         throw new Error("Request not found");
       }
+      
+      const request = requestDoc.data() as PaymentRequest;
 
       // Update request status
       await updateDoc(requestRef, {

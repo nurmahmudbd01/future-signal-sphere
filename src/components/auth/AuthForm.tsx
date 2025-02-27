@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -10,41 +11,52 @@ import { registerUser, loginUser } from '@/lib/firebase';
 
 export function AuthForm() {
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>, type: 'login' | 'register') => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const username = formData.get('username') as string;
 
+    if (!email || !password) {
+      setError("Email and password are required");
+      setIsLoading(false);
+      return;
+    }
+
+    if (type === 'register' && !username) {
+      setError("Username is required");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       if (type === 'register') {
-        if (!username) throw new Error('Username is required');
         await registerUser(email, password, username);
         toast({
           title: "Account created!",
           description: "You have been automatically logged in.",
         });
-        navigate('/', { replace: true }); // Use replace to prevent going back to auth page
       } else {
         await loginUser(email, password);
         toast({
           title: "Welcome back!",
           description: "You've been successfully logged in.",
         });
-        navigate('/', { replace: true }); // Use replace to prevent going back to auth page
       }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Something went wrong",
-      });
+      
+      // Navigate after successful auth
+      navigate('/', { replace: true });
+    } catch (error: any) {
+      console.error("Auth error:", error);
+      setError(error.message || "Authentication failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -57,6 +69,15 @@ export function AuthForm() {
           <TabsTrigger value="login">Login</TabsTrigger>
           <TabsTrigger value="register">Register</TabsTrigger>
         </TabsList>
+        
+        {error && (
+          <div className="px-6 pt-6 pb-0">
+            <div className="bg-destructive/15 text-destructive px-4 py-2 rounded-md text-sm">
+              {error}
+            </div>
+          </div>
+        )}
+        
         <TabsContent value="login">
           <form onSubmit={(e) => handleSubmit(e, 'login')}>
             <CardHeader>

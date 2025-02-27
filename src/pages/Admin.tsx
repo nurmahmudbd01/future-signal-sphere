@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
@@ -12,7 +13,6 @@ import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from "@/lib/firebase";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { useEffect } from "react";
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState("signals");

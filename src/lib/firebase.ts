@@ -1,3 +1,4 @@
+
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -26,6 +27,10 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 export const registerUser = async (email: string, password: string, username: string) => {
+  if (!email || !password || !username) {
+    throw new Error('Email, password, and username are required');
+  }
+  
   try {
     // Create user with email and password
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -49,41 +54,60 @@ export const registerUser = async (email: string, password: string, username: st
     };
 
     await setDoc(doc(db, 'users', uid), userData);
-
-    // Login the user after registration
-    await loginUser(email, password);
-
     return userCredential.user;
   } catch (error: any) {
+    console.error("Registration error:", error);
     if (error.code === 'auth/email-already-in-use') {
       throw new Error('This email address is already registered.');
+    } else if (error.code === 'auth/invalid-email') {
+      throw new Error('Invalid email address format.');
+    } else if (error.code === 'auth/weak-password') {
+      throw new Error('Password is too weak. Use at least 6 characters.');
     }
     throw new Error('Failed to create account. Please try again.');
   }
 };
 
 export const loginUser = async (email: string, password: string) => {
+  if (!email || !password) {
+    throw new Error('Email and password are required');
+  }
+  
   try {
     const result = await signInWithEmailAndPassword(auth, email, password);
-    const userDoc = await getDoc(doc(db, 'users', result.user.uid));
-    if (!userDoc.exists()) {
-      throw new Error('User profile not found');
-    }
-    
     // Update last login time
-    await updateDoc(doc(db, 'users', result.user.uid), {
-      lastLogin: new Date().toISOString()
-    });
+    const userRef = doc(db, 'users', result.user.uid);
+    const userDoc = await getDoc(userRef);
+    
+    if (userDoc.exists()) {
+      await updateDoc(userRef, {
+        lastLogin: new Date().toISOString()
+      });
+    } else {
+      // Create user document if it doesn't exist (rare case, but possible)
+      await setDoc(userRef, {
+        uid: result.user.uid,
+        email: result.user.email,
+        username: result.user.displayName || email.split('@')[0],
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        role: 'user',
+        profileComplete: false,
+        status: 'active'
+      });
+    }
 
     return result;
   } catch (error: any) {
+    console.error("Login error:", error);
     switch (error.code) {
       case 'auth/invalid-credential':
       case 'auth/user-not-found':
       case 'auth/wrong-password':
+      case 'auth/invalid-email':
         throw new Error('Invalid email or password. Please check your credentials and try again.');
       case 'auth/too-many-requests':
-        throw new Error('Too many failed login attempts. Please try again later.');
+        throw new Error('Too many failed login attempts. Please try again later or reset your password.');
       case 'auth/user-disabled':
         throw new Error('This account has been disabled. Please contact support.');
       default:
