@@ -38,14 +38,20 @@ export function AuthForm() {
     }
 
     try {
+      console.log(`Attempting to ${type === 'register' ? 'register' : 'login'} user:`, email);
+      
       if (type === 'register') {
-        await registerUser(email, password, username);
+        const user = await registerUser(email, password, username);
+        console.log("Registration successful:", user);
+        
         toast({
           title: "Account created!",
           description: "You have been automatically logged in.",
         });
       } else {
-        await loginUser(email, password);
+        const result = await loginUser(email, password);
+        console.log("Login successful:", result.user.uid);
+        
         toast({
           title: "Welcome back!",
           description: "You've been successfully logged in.",

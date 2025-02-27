@@ -1,4 +1,3 @@
-
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -32,19 +31,20 @@ export const registerUser = async (email: string, password: string, username: st
   }
   
   try {
-    // Create user with email and password
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const uid = userCredential.user.uid;
+    const user = userCredential.user;
     
-    // Update profile with username
-    await updateProfile(userCredential.user, {
+    if (!user || !user.uid) {
+      throw new Error('User creation failed');
+    }
+    
+    await updateProfile(user, {
       displayName: username
     });
-
-    // Store complete user data in Firestore
+    
     const userData = {
-      uid,
-      email,
+      uid: user.uid,
+      email: user.email,
       username,
       createdAt: new Date().toISOString(),
       lastLogin: new Date().toISOString(),
@@ -52,18 +52,27 @@ export const registerUser = async (email: string, password: string, username: st
       profileComplete: false,
       status: 'active'
     };
-
-    await setDoc(doc(db, 'users', uid), userData);
-    return userCredential.user;
+    
+    const userDocRef = doc(db, 'users', user.uid);
+    await setDoc(userDocRef, userData, { merge: true });
+    
+    console.log("User registered successfully:", user.uid);
+    console.log("User data saved to Firestore:", userData);
+    
+    return user;
   } catch (error: any) {
     console.error("Registration error:", error);
+    
     if (error.code === 'auth/email-already-in-use') {
       throw new Error('This email address is already registered.');
     } else if (error.code === 'auth/invalid-email') {
       throw new Error('Invalid email address format.');
     } else if (error.code === 'auth/weak-password') {
       throw new Error('Password is too weak. Use at least 6 characters.');
+    } else if (error.code) {
+      throw new Error(`Registration failed: ${error.message}`);
     }
+    
     throw new Error('Failed to create account. Please try again.');
   }
 };
@@ -74,32 +83,45 @@ export const loginUser = async (email: string, password: string) => {
   }
   
   try {
-    const result = await signInWithEmailAndPassword(auth, email, password);
-    // Update last login time
-    const userRef = doc(db, 'users', result.user.uid);
-    const userDoc = await getDoc(userRef);
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
     
-    if (userDoc.exists()) {
-      await updateDoc(userRef, {
-        lastLogin: new Date().toISOString()
-      });
-    } else {
-      // Create user document if it doesn't exist (rare case, but possible)
-      await setDoc(userRef, {
-        uid: result.user.uid,
-        email: result.user.email,
-        username: result.user.displayName || email.split('@')[0],
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
-        role: 'user',
-        profileComplete: false,
-        status: 'active'
-      });
+    if (!user || !user.uid) {
+      throw new Error('Login failed');
     }
-
-    return result;
+    
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (userDoc.exists()) {
+        await updateDoc(userDocRef, {
+          lastLogin: new Date().toISOString()
+        });
+      } else {
+        const userData = {
+          uid: user.uid,
+          email: user.email,
+          username: user.displayName || email.split('@')[0],
+          createdAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+          role: 'user',
+          profileComplete: false,
+          status: 'active'
+        };
+        
+        await setDoc(userDocRef, userData);
+        console.log("Created missing user document in Firestore:", userData);
+      }
+    } catch (firestoreError) {
+      console.error("Error updating user data in Firestore:", firestoreError);
+    }
+    
+    console.log("User logged in successfully:", user.uid);
+    return userCredential;
   } catch (error: any) {
     console.error("Login error:", error);
+    
     switch (error.code) {
       case 'auth/invalid-credential':
       case 'auth/user-not-found':
@@ -111,7 +133,7 @@ export const loginUser = async (email: string, password: string) => {
       case 'auth/user-disabled':
         throw new Error('This account has been disabled. Please contact support.');
       default:
-        throw new Error('Failed to log in. Please try again.');
+        throw new Error(`Login failed: ${error.message || 'Please try again.'}`);
     }
   }
 };
@@ -121,14 +143,39 @@ export const logoutUser = async () => {
 };
 
 export const getUserProfile = async (uid: string) => {
-  const userDoc = await getDoc(doc(db, 'users', uid));
-  if (!userDoc.exists()) {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', uid));
+    
+    if (!userDoc.exists()) {
+      console.log("User document doesn't exist in Firestore, creating it now");
+      
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('No authenticated user found');
+      }
+      
+      const userData = {
+        uid: user.uid,
+        email: user.email,
+        username: user.displayName || user.email?.split('@')[0] || 'User',
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        role: 'user',
+        profileComplete: false,
+        status: 'active'
+      };
+      
+      await setDoc(doc(db, 'users', uid), userData);
+      return userData;
+    }
+    
+    return userDoc.data();
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
     throw new Error('User profile not found');
   }
-  return userDoc.data();
 };
 
-// Add new functions for premium access
 export interface PaymentMethod {
   id: string;
   name: string;
@@ -248,11 +295,9 @@ export const updateUserPassword = async (currentPassword: string, newPassword: s
   }
 
   try {
-    // Re-authenticate user before password change
     const credential = EmailAuthProvider.credential(user.email, currentPassword);
     await reauthenticateWithCredential(user, credential);
     
-    // Update password
     await firebaseUpdatePassword(user, newPassword);
   } catch (error: any) {
     switch (error.code) {

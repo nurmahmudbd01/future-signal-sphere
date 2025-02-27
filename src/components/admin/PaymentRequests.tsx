@@ -6,6 +6,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
+interface UserData {
+  id: string;
+  username: string;
+  [key: string]: any;
+}
+
 interface PaymentRequest {
   id: string;
   userId: string;
@@ -16,11 +22,7 @@ interface PaymentRequest {
   createdAt: string;
   updatedAt: string;
   message?: string;
-  user?: {
-    id: string;
-    username: string;
-    [key: string]: any;
-  };
+  user?: UserData;
 }
 
 export function PaymentRequests() {
@@ -43,14 +45,27 @@ export function PaymentRequests() {
           const userDoc = await getDoc(doc(db, 'users', request.userId));
           
           if (userDoc.exists()) {
+            const userData = userDoc.data() as DocumentData;
             requestsData.push({
               ...request,
-              user: { id: userDoc.id, ...userDoc.data() as DocumentData }
+              user: { 
+                id: userDoc.id, 
+                username: userData.username || "Unknown User",
+                ...userData 
+              }
             });
           } else {
-            requestsData.push(request);
+            // If user document doesn't exist, still add request but with default user info
+            requestsData.push({
+              ...request,
+              user: {
+                id: request.userId,
+                username: "Unknown User"
+              }
+            });
           }
         } else {
+          // If there's no userId at all, add request without user info
           requestsData.push(request);
         }
       }
