@@ -1,3 +1,4 @@
+
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -9,7 +10,7 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyD0-woWJiIZcyLizZP3PGwANIGNvKJ8TYA",
@@ -48,18 +49,23 @@ export const registerUser = async (email: string, password: string, username: st
       username,
       createdAt: new Date().toISOString(),
       lastLogin: new Date().toISOString(),
-      role: 'user',
+      role: 'user', // Default role is 'user'
       profileComplete: false,
       status: 'active'
     };
     
-    const userDocRef = doc(db, 'users', user.uid);
-    await setDoc(userDocRef, userData, { merge: true });
-    
-    console.log("User registered successfully:", user.uid);
-    console.log("User data saved to Firestore:", userData);
-    
-    return user;
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      await setDoc(userDocRef, userData);
+      console.log("User registered successfully:", user.uid);
+      console.log("User data saved to Firestore:", userData);
+      return user;
+    } catch (firestoreError) {
+      console.error("Error saving user data to Firestore:", firestoreError);
+      // Even if Firestore fails, the user is still created in Authentication
+      // We return the user so they can at least sign in
+      return user;
+    }
   } catch (error: any) {
     console.error("Registration error:", error);
     
@@ -99,6 +105,8 @@ export const loginUser = async (email: string, password: string) => {
           lastLogin: new Date().toISOString()
         });
       } else {
+        // Create user document if it doesn't exist in Firestore
+        // This is a fallback in case registerUser failed to create the document
         const userData = {
           uid: user.uid,
           email: user.email,
@@ -115,6 +123,7 @@ export const loginUser = async (email: string, password: string) => {
       }
     } catch (firestoreError) {
       console.error("Error updating user data in Firestore:", firestoreError);
+      // We continue even if Firestore update fails
     }
     
     console.log("User logged in successfully:", user.uid);
@@ -204,6 +213,10 @@ export const createPaymentRequest = async (
   amount: number,
   message?: string
 ) => {
+  if (!auth.currentUser) {
+    throw new Error('You must be logged in to create a payment request');
+  }
+
   const paymentRequest: PaymentRequest = {
     id: `PR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     userId,
@@ -216,44 +229,74 @@ export const createPaymentRequest = async (
     message
   };
 
-  await setDoc(doc(db, 'paymentRequests', paymentRequest.id), paymentRequest);
-  return paymentRequest;
+  try {
+    await setDoc(doc(db, 'paymentRequests', paymentRequest.id), paymentRequest);
+    return paymentRequest;
+  } catch (error) {
+    console.error("Error creating payment request:", error);
+    throw new Error('Failed to create payment request. Please try again.');
+  }
 };
 
 export const getUserSubscription = async (userId: string) => {
-  const userDoc = await getDoc(doc(db, 'users', userId));
-  if (!userDoc.exists()) {
-    throw new Error('User not found');
-  }
+  try {
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (!userDoc.exists()) {
+      throw new Error('User not found');
+    }
 
-  const userData = userDoc.data();
-  return {
-    isPremium: userData.premiumExpiresAt ? new Date(userData.premiumExpiresAt) > new Date() : false,
-    expiresAt: userData.premiumExpiresAt
-  };
+    const userData = userDoc.data();
+    return {
+      isPremium: userData.premiumExpiresAt ? new Date(userData.premiumExpiresAt) > new Date() : false,
+      expiresAt: userData.premiumExpiresAt
+    };
+  } catch (error) {
+    console.error("Error fetching subscription:", error);
+    return {
+      isPremium: false,
+      expiresAt: null
+    };
+  }
 };
 
 export const getUserPaymentRequests = async (userId: string) => {
-  const requestDocs = await getDocs(
-    query(
-      collection(db, 'paymentRequests'), 
-      where('userId', '==', userId),
-      orderBy('createdAt', 'desc')
-    )
-  );
-  
-  return requestDocs.docs.map(doc => doc.data() as PaymentRequest);
+  if (!auth.currentUser) {
+    throw new Error('You must be logged in to view payment requests');
+  }
+
+  try {
+    const requestDocs = await getDocs(
+      query(
+        collection(db, 'paymentRequests'), 
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc')
+      )
+    );
+    
+    return requestDocs.docs.map(doc => doc.data() as PaymentRequest);
+  } catch (error) {
+    console.error("Error fetching payment requests:", error);
+    throw new Error('Failed to fetch payment requests');
+  }
 };
 
 export const getPaymentMethods = async () => {
-  const methodDocs = await getDocs(
-    query(
-      collection(db, 'paymentMethods'),
-      where('isActive', '==', true)
-    )
-  );
-  
-  return methodDocs.docs.map(doc => doc.data() as PaymentMethod);
+  try {
+    const methodDocs = await getDocs(
+      query(
+        collection(db, 'paymentMethods'),
+        where('isActive', '==', true)
+      )
+    );
+    
+    return methodDocs.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }) as PaymentMethod);
+  } catch (error) {
+    console.error("Error fetching payment methods:", error);
+    throw new Error('Failed to fetch payment methods');
+  }
 };
 
 interface UserProfile {
@@ -272,19 +315,33 @@ interface UserProfile {
 }
 
 export const updateUserProfile = async (uid: string, data: Partial<UserProfile>) => {
-  const userRef = doc(db, 'users', uid);
-  await updateDoc(userRef, {
-    ...data,
-    updatedAt: new Date().toISOString()
-  });
+  if (!auth.currentUser) {
+    throw new Error('You must be logged in to update your profile');
+  }
   
-  if (data.username) {
-    const user = auth.currentUser;
-    if (user) {
-      await updateProfile(user, {
-        displayName: data.username
-      });
+  // Ensure users can only update their own profiles
+  if (auth.currentUser.uid !== uid) {
+    throw new Error('You can only update your own profile');
+  }
+
+  try {
+    const userRef = doc(db, 'users', uid);
+    await updateDoc(userRef, {
+      ...data,
+      updatedAt: new Date().toISOString()
+    });
+    
+    if (data.username) {
+      const user = auth.currentUser;
+      if (user) {
+        await updateProfile(user, {
+          displayName: data.username
+        });
+      }
     }
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    throw new Error('Failed to update profile. Please try again.');
   }
 };
 

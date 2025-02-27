@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignalCard } from "@/components/SignalCard";
@@ -7,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createPaymentRequest, PaymentMethod, getPaymentMethods } from "@/lib/firebase";
-import { getAllStoredSignals } from "@/utils/signalUtils"; // Add this import
+import { getAllStoredSignals } from "@/utils/signalUtils";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -26,6 +27,7 @@ export default function Premium() {
   const [visibleClosedCount, setVisibleClosedCount] = useState(6);
   const [selectedTab, setSelectedTab] = useState("future");
 
+  // Fetch premium signals
   useEffect(() => {
     const loadSignals = () => {
       const allSignals = getAllStoredSignals();
@@ -50,11 +52,15 @@ export default function Premium() {
     return () => window.removeEventListener('storage', loadSignals);
   }, []);
 
-  const { data: paymentMethods } = useQuery({
+  // Fetch payment methods
+  const { data: paymentMethods, isLoading: isLoadingPaymentMethods } = useQuery({
     queryKey: ['paymentMethods'],
-    queryFn: getPaymentMethods
+    queryFn: getPaymentMethods,
+    // Prevent refetching if user is not logged in
+    enabled: !!user
   });
 
+  // If not logged in, show login prompt
   if (!user) {
     return (
       <div className="container py-16 text-center">
@@ -67,6 +73,7 @@ export default function Premium() {
     );
   }
 
+  // If not premium, show upgrade options
   if (!subscription?.isPremium) {
     return (
       <div className="container py-16">
@@ -110,71 +117,80 @@ export default function Premium() {
                       Choose your preferred payment method to proceed.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    {paymentMethods?.map((method: PaymentMethod) => (
-                      <Card key={method.id} className="cursor-pointer hover:bg-accent">
-                        <CardHeader>
-                          <CardTitle className="text-lg">{method.name}</CardTitle>
-                          <CardDescription>{method.instructions}</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="font-mono bg-muted p-2 rounded">{method.accountDetails}</p>
-                        </CardContent>
-                        <CardFooter>
-                          <form 
-                            className="w-full space-y-4"
-                            onSubmit={async (e) => {
-                              e.preventDefault();
-                              const formData = new FormData(e.currentTarget);
-                              const transactionId = formData.get('transactionId') as string;
-                              const message = formData.get('message') as string;
+                  
+                  {isLoadingPaymentMethods ? (
+                    <div className="py-4 text-center">Loading payment methods...</div>
+                  ) : paymentMethods && paymentMethods.length > 0 ? (
+                    <div className="space-y-4 py-4">
+                      {paymentMethods.map((method: PaymentMethod) => (
+                        <Card key={method.id} className="cursor-pointer hover:bg-accent">
+                          <CardHeader>
+                            <CardTitle className="text-lg">{method.name}</CardTitle>
+                            <CardDescription>{method.instructions}</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="font-mono bg-muted p-2 rounded">{method.accountDetails}</p>
+                          </CardContent>
+                          <CardFooter>
+                            <form 
+                              className="w-full space-y-4"
+                              onSubmit={async (e) => {
+                                e.preventDefault();
+                                const formData = new FormData(e.currentTarget);
+                                const transactionId = formData.get('transactionId') as string;
+                                const message = formData.get('message') as string;
 
-                              try {
-                                await createPaymentRequest(
-                                  user.uid,
-                                  method.id,
-                                  transactionId,
-                                  49.99,
-                                  message
-                                );
-                                toast({
-                                  title: "Payment Request Submitted",
-                                  description: "We'll review your payment and activate your premium access soon.",
-                                });
-                              } catch (error) {
-                                toast({
-                                  variant: "destructive",
-                                  title: "Error",
-                                  description: "Failed to submit payment request. Please try again.",
-                                });
-                              }
-                            }}
-                          >
-                            <div className="space-y-2">
-                              <Label htmlFor="transactionId">Transaction ID</Label>
-                              <Input 
-                                id="transactionId" 
-                                name="transactionId" 
-                                required 
-                                placeholder="Enter your transaction ID"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="message">Message (Optional)</Label>
-                              <Input 
-                                id="message" 
-                                name="message" 
-                                placeholder="Any additional information"
-                              />
-                            </div>
-                            <Button type="submit" className="w-full">
-                              Submit Payment
-                            </Button>
-                          </form>
-                        </CardFooter>
-                      </Card>
-                    ))}
-                  </div>
+                                try {
+                                  await createPaymentRequest(
+                                    user.uid,
+                                    method.id,
+                                    transactionId,
+                                    49.99,
+                                    message
+                                  );
+                                  toast({
+                                    title: "Payment Request Submitted",
+                                    description: "We'll review your payment and activate your premium access soon.",
+                                  });
+                                } catch (error) {
+                                  toast({
+                                    variant: "destructive",
+                                    title: "Error",
+                                    description: "Failed to submit payment request. Please try again.",
+                                  });
+                                }
+                              }}
+                            >
+                              <div className="space-y-2">
+                                <Label htmlFor="transactionId">Transaction ID</Label>
+                                <Input 
+                                  id="transactionId" 
+                                  name="transactionId" 
+                                  required 
+                                  placeholder="Enter your transaction ID"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="message">Message (Optional)</Label>
+                                <Input 
+                                  id="message" 
+                                  name="message" 
+                                  placeholder="Any additional information"
+                                />
+                              </div>
+                              <Button type="submit" className="w-full">
+                                Submit Payment
+                              </Button>
+                            </form>
+                          </CardFooter>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-4 text-center text-muted-foreground">
+                      No payment methods available. Please contact support.
+                    </div>
+                  )}
                 </DialogContent>
               </Dialog>
             </CardFooter>

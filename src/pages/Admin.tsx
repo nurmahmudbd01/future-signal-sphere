@@ -9,10 +9,11 @@ import { SignalCard } from "@/components/SignalCard";
 import { Signal } from "@/types/signal";
 import { PaymentMethodForm } from "@/components/admin/PaymentMethodForm";
 import { PaymentRequests } from "@/components/admin/PaymentRequests";
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db, auth } from "@/lib/firebase";
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from "@/lib/firebase";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState("signals");
@@ -21,37 +22,30 @@ export default function Admin() {
   const [showPaymentMethodDialog, setShowPaymentMethodDialog] = useState(false);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasAccess, setHasAccess] = useState(false);
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
 
-  // Check admin access
   useEffect(() => {
-    const checkAdminAccess = async () => {
+    const checkAccess = async () => {
       setIsLoading(true);
       try {
         // Check if user is logged in
-        if (!auth.currentUser) {
+        if (!user) {
           toast.error("Please login to access this page");
           navigate('/auth');
           return;
         }
 
         // Check if user is admin
-        const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
-        if (!userDoc.exists()) {
-          toast.error("User not found");
-          navigate('/');
-          return;
-        }
-
-        const userData = userDoc.data();
-        if (userData.role !== 'admin') {
+        if (!isAdmin) {
           toast.error("You don't have permission to access this page");
           navigate('/');
           return;
         }
 
-        setHasAccess(true);
+        // If we get here, user is authenticated and is an admin
+        // Continue loading admin data
+        await loadAdminData();
       } catch (error) {
         console.error("Error checking admin access:", error);
         toast.error("An error occurred while checking permissions");
@@ -61,25 +55,11 @@ export default function Admin() {
       }
     };
 
-    checkAdminAccess();
-  }, [navigate]);
+    checkAccess();
+  }, [user, isAdmin, navigate]);
 
-  if (isLoading) {
-    return (
-      <div className="container py-16">
-        <div className="flex items-center justify-center">
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!hasAccess) {
-    return null; // Will redirect via useEffect
-  }
-
-  // Load last 3 signals
-  useEffect(() => {
+  const loadAdminData = async () => {
+    // Load signals from localStorage
     const loadSignals = () => {
       const storedSignals = localStorage.getItem('signals');
       if (storedSignals) {
@@ -89,12 +69,8 @@ export default function Admin() {
     };
 
     loadSignals();
-    window.addEventListener('storage', loadSignals);
-    return () => window.removeEventListener('storage', loadSignals);
-  }, []);
 
-  // Fetch payment methods
-  const fetchPaymentMethods = async () => {
+    // Fetch payment methods
     try {
       const methodsSnapshot = await getDocs(collection(db, 'paymentMethods'));
       setPaymentMethods(methodsSnapshot.docs.map(doc => ({
@@ -107,9 +83,20 @@ export default function Admin() {
     }
   };
 
-  useEffect(() => {
-    fetchPaymentMethods();
-  }, []);
+  if (isLoading) {
+    return (
+      <div className="container py-16">
+        <div className="flex items-center justify-center">
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If not admin, the useEffect will redirect, but we still return null as a safety
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <div className="container py-16">
@@ -172,6 +159,18 @@ export default function Admin() {
                     editingMethod={editingMethod}
                     onSuccess={() => {
                       setShowPaymentMethodDialog(false);
+                      const fetchPaymentMethods = async () => {
+                        try {
+                          const methodsSnapshot = await getDocs(collection(db, 'paymentMethods'));
+                          setPaymentMethods(methodsSnapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                          })));
+                        } catch (error) {
+                          console.error("Error fetching payment methods:", error);
+                          toast.error("Failed to load payment methods");
+                        }
+                      };
                       fetchPaymentMethods();
                     }}
                     onCancel={() => setShowPaymentMethodDialog(false)}
