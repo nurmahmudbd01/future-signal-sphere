@@ -7,7 +7,7 @@ import { Signal, SignalStatus } from "@/types/signal";
 import { SignalSearchAndFilter } from "@/components/SignalSearchAndFilter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { createPaymentRequest, PaymentMethod, getPaymentMethods } from "@/lib/firebase";
 import { getAllStoredSignals } from "@/utils/signalUtils";
 import { useQuery } from "@tanstack/react-query";
@@ -15,8 +15,10 @@ import { Link } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Loader2, CreditCard, ArrowRight, Clock } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 export default function Premium() {
   const { user, subscription } = useAuth();
@@ -27,6 +29,10 @@ export default function Premium() {
   const [visibleCount, setVisibleCount] = useState(12);
   const [visibleClosedCount, setVisibleClosedCount] = useState(6);
   const [selectedTab, setSelectedTab] = useState("future");
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
+  const [paymentStep, setPaymentStep] = useState<'methods' | 'details' | 'success'>('methods');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch premium signals
   useEffect(() => {
@@ -53,13 +59,63 @@ export default function Premium() {
     return () => window.removeEventListener('storage', loadSignals);
   }, []);
 
+  // Reset payment dialog state when it's closed
+  useEffect(() => {
+    if (!paymentDialogOpen) {
+      setTimeout(() => {
+        setSelectedMethod(null);
+        setPaymentStep('methods');
+      }, 300); // Small delay to avoid visual glitches during close animation
+    }
+  }, [paymentDialogOpen]);
+
   // Fetch payment methods
   const { data: paymentMethods, isLoading: isLoadingPaymentMethods } = useQuery({
     queryKey: ['paymentMethods'],
     queryFn: getPaymentMethods,
-    // Prevent refetching if user is not logged in
     enabled: !!user
   });
+
+  const handlePaymentMethodSelect = (method: PaymentMethod) => {
+    setSelectedMethod(method);
+    setPaymentStep('details');
+  };
+
+  const handlePaymentSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    
+    if (!selectedMethod || !user) return;
+    
+    setIsSubmitting(true);
+    
+    const formData = new FormData(e.currentTarget);
+    const transactionId = formData.get('transactionId') as string;
+    const message = formData.get('message') as string;
+
+    try {
+      await createPaymentRequest(
+        user.uid,
+        selectedMethod.id,
+        transactionId,
+        49.99,
+        message
+      );
+      
+      setPaymentStep('success');
+      toast({
+        title: "Payment Request Submitted",
+        description: "We'll review your payment and activate your premium access soon.",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to submit payment request. Please try again.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // If not logged in, show login prompt
   if (!user) {
@@ -78,119 +134,206 @@ export default function Premium() {
   if (!subscription?.isPremium) {
     return (
       <div className="container py-16">
-        <div className="max-w-2xl mx-auto text-center">
-          <h1 className="text-3xl font-bold mb-4">Upgrade to Premium</h1>
-          <p className="mb-8 text-muted-foreground">
-            Get access to exclusive premium signals and advanced features.
-          </p>
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-10">
+            <h1 className="text-3xl font-bold mb-4">Upgrade to Premium</h1>
+            <p className="text-muted-foreground">
+              Get access to exclusive premium signals and advanced features.
+            </p>
+          </div>
           
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>Premium Membership</CardTitle>
+          <Card className="mb-8 shadow-lg border-blue-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-1"></div>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-2xl">Premium Membership</CardTitle>
               <CardDescription>30 days access to premium signals</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-4xl font-bold mb-4">$49.99</div>
-              <ul className="space-y-2 mb-6">
-                <li className="flex items-center">
-                  <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                  Access to all premium signals
-                </li>
-                <li className="flex items-center">
-                  <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                  Early access to new signals
-                </li>
-                <li className="flex items-center">
-                  <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                  Priority support
-                </li>
-              </ul>
+              <div className="text-4xl font-bold mb-6 text-blue-600">$49.99</div>
+              <div className="space-y-3 mb-8">
+                <div className="flex items-start">
+                  <CheckCircle className="h-5 w-5 mr-3 text-green-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium">Access to all premium signals</p>
+                    <p className="text-sm text-muted-foreground">Get exclusive signals not available to free users</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <CheckCircle className="h-5 w-5 mr-3 text-green-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium">Early access to new signals</p>
+                    <p className="text-sm text-muted-foreground">Be the first to receive our most profitable trading opportunities</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <CheckCircle className="h-5 w-5 mr-3 text-green-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium">Priority support</p>
+                    <p className="text-sm text-muted-foreground">Get faster responses from our team when you need help</p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
-            <CardFooter>
-              <Dialog>
+            <CardFooter className="bg-slate-50 border-t">
+              <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="w-full">Subscribe Now</Button>
+                  <Button className="w-full" size="lg">
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Subscribe Now
+                  </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Payment Methods</DialogTitle>
-                    <DialogDescription>
-                      Choose your preferred payment method to proceed.
-                    </DialogDescription>
-                  </DialogHeader>
+                  {paymentStep === 'methods' && (
+                    <>
+                      <DialogHeader>
+                        <DialogTitle>Choose Payment Method</DialogTitle>
+                        <DialogDescription>
+                          Select your preferred way to complete your purchase.
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      {isLoadingPaymentMethods ? (
+                        <div className="py-10 text-center">
+                          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
+                          <p className="text-muted-foreground">Loading payment methods...</p>
+                        </div>
+                      ) : paymentMethods && paymentMethods.length > 0 ? (
+                        <div className="pt-4">
+                          <RadioGroup className="space-y-4">
+                            {paymentMethods.map((method: PaymentMethod) => (
+                              <div
+                                key={method.id}
+                                className="flex items-center space-x-2 rounded-lg border p-4 cursor-pointer hover:bg-accent transition-colors"
+                                onClick={() => handlePaymentMethodSelect(method)}
+                              >
+                                <RadioGroupItem value={method.id} id={method.id} className="cursor-pointer" />
+                                <div className="flex flex-col space-y-1 flex-1">
+                                  <Label htmlFor={method.id} className="text-base font-medium cursor-pointer">{method.name}</Label>
+                                  <p className="text-sm text-muted-foreground">{method.instructions.split('.')[0]}.</p>
+                                </div>
+                                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            ))}
+                          </RadioGroup>
+                        </div>
+                      ) : (
+                        <div className="py-10 text-center">
+                          <p className="text-muted-foreground">
+                            No payment methods available. Please contact support.
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
                   
-                  {isLoadingPaymentMethods ? (
-                    <div className="py-4 text-center">Loading payment methods...</div>
-                  ) : paymentMethods && paymentMethods.length > 0 ? (
-                    <div className="space-y-4 py-4">
-                      {paymentMethods.map((method: PaymentMethod) => (
-                        <Card key={method.id} className="cursor-pointer hover:bg-accent">
-                          <CardHeader>
-                            <CardTitle className="text-lg">{method.name}</CardTitle>
-                            <CardDescription>{method.instructions}</CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            <p className="font-mono bg-muted p-2 rounded">{method.accountDetails}</p>
-                          </CardContent>
-                          <CardFooter>
-                            <form 
-                              className="w-full space-y-4"
-                              onSubmit={async (e) => {
-                                e.preventDefault();
-                                const formData = new FormData(e.currentTarget);
-                                const transactionId = formData.get('transactionId') as string;
-                                const message = formData.get('message') as string;
-
-                                try {
-                                  await createPaymentRequest(
-                                    user.uid,
-                                    method.id,
-                                    transactionId,
-                                    49.99,
-                                    message
-                                  );
-                                  toast({
-                                    title: "Payment Request Submitted",
-                                    description: "We'll review your payment and activate your premium access soon.",
-                                  });
-                                } catch (error) {
-                                  toast({
-                                    variant: "destructive",
-                                    title: "Error",
-                                    description: "Failed to submit payment request. Please try again.",
-                                  });
-                                }
-                              }}
+                  {paymentStep === 'details' && selectedMethod && (
+                    <>
+                      <DialogHeader>
+                        <DialogTitle>Complete Your Payment</DialogTitle>
+                        <DialogDescription>
+                          Follow the instructions below to complete your payment.
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="space-y-4 py-4">
+                        <div className="rounded-lg bg-muted p-4 space-y-3">
+                          <h3 className="font-medium">{selectedMethod.name} Payment Instructions</h3>
+                          <p className="text-sm text-muted-foreground whitespace-pre-line">{selectedMethod.instructions}</p>
+                          
+                          <div className="bg-background border rounded-md p-3 font-mono text-sm overflow-x-auto">
+                            {selectedMethod.accountDetails}
+                          </div>
+                        </div>
+                        
+                        <form id="payment-form" onSubmit={handlePaymentSubmit} className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="transactionId" className="font-medium">Transaction ID <span className="text-red-500">*</span></Label>
+                            <Input 
+                              id="transactionId" 
+                              name="transactionId" 
+                              required 
+                              placeholder="Enter the transaction ID from your payment"
+                              className="transition-shadow focus-visible:shadow-md"
+                            />
+                            <p className="text-xs text-muted-foreground">This is the unique identifier for your payment transaction</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="message" className="font-medium">Additional Information</Label>
+                            <Textarea 
+                              id="message" 
+                              name="message" 
+                              placeholder="Any details you'd like us to know about your payment"
+                              className="transition-shadow focus-visible:shadow-md resize-none"
+                              rows={3}
+                            />
+                          </div>
+                          
+                          <div className="pt-2 flex space-x-2">
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              onClick={() => setPaymentStep('methods')}
+                              disabled={isSubmitting}
+                              className="flex-1"
                             >
-                              <div className="space-y-2">
-                                <Label htmlFor="transactionId">Transaction ID</Label>
-                                <Input 
-                                  id="transactionId" 
-                                  name="transactionId" 
-                                  required 
-                                  placeholder="Enter your transaction ID"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="message">Message (Optional)</Label>
-                                <Input 
-                                  id="message" 
-                                  name="message" 
-                                  placeholder="Any additional information"
-                                />
-                              </div>
-                              <Button type="submit" className="w-full">
-                                Submit Payment
-                              </Button>
-                            </form>
-                          </CardFooter>
-                        </Card>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="py-4 text-center text-muted-foreground">
-                      No payment methods available. Please contact support.
-                    </div>
+                              Back
+                            </Button>
+                            <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                              {isSubmitting ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Processing...
+                                </>
+                              ) : (
+                                "Submit Payment"
+                              )}
+                            </Button>
+                          </div>
+                        </form>
+                      </div>
+                    </>
+                  )}
+                  
+                  {paymentStep === 'success' && (
+                    <>
+                      <DialogHeader>
+                        <DialogTitle className="text-center flex flex-col items-center">
+                          <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
+                          Payment Request Submitted
+                        </DialogTitle>
+                      </DialogHeader>
+                      
+                      <div className="space-y-4 py-6 text-center">
+                        <p>
+                          Thank you for your payment request. We've received your information and will process it shortly.
+                        </p>
+                        
+                        <div className="rounded-lg bg-muted p-4 text-left">
+                          <div className="flex items-start space-x-3 mb-3">
+                            <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
+                            <div>
+                              <h4 className="font-medium">What happens next?</h4>
+                              <p className="text-sm text-muted-foreground">Our team will verify your payment and activate your premium access, usually within 24 hours.</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-start space-x-3">
+                            <CreditCard className="h-5 w-5 text-muted-foreground mt-0.5" />
+                            <div>
+                              <h4 className="font-medium">Payment details</h4>
+                              <p className="text-sm text-muted-foreground">You can view your payment history and status in your profile page.</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <DialogFooter className="flex sm:justify-center">
+                        <Button onClick={() => setPaymentDialogOpen(false)}>
+                          Close
+                        </Button>
+                      </DialogFooter>
+                    </>
                   )}
                 </DialogContent>
               </Dialog>
@@ -253,10 +396,10 @@ export default function Premium() {
           </TabsList>
           
           <SignalSearchAndFilter
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            status={statusFilter}
+            onStatusChange={setStatusFilter}
           />
         </div>
         

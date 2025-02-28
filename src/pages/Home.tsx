@@ -88,10 +88,10 @@ export default function Home() {
           </TabsList>
           
           <SignalSearchAndFilter
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            status={statusFilter}
+            onStatusChange={setStatusFilter}
           />
         </div>
         
