@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignalCard } from "@/components/SignalCard";
+import { PendingSignals } from "@/components/PendingSignals";
 import { Signal, SignalStatus } from "@/types/signal";
 import { SignalSearchAndFilter } from "@/components/SignalSearchAndFilter";
 import { Button } from "@/components/ui/button";
@@ -200,131 +201,233 @@ export default function Premium() {
     );
   }
 
+  // Filter and search signals
   const filteredSignals = signals.filter(signal => {
-    const matchesSearch = signal.id.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || signal.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    // Filter by search query
+    const matchesSearch = 
+      searchQuery === "" || 
+      signal.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      signal.description.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Filter by status
+    const matchesStatus = 
+      statusFilter === 'all' || 
+      signal.status === statusFilter;
+    
+    // Market type filter
+    const matchesMarketType = 
+      (selectedTab === "all") || 
+      (selectedTab === "future" && signal.marketType === "Future") || 
+      (selectedTab === "spot" && signal.marketType === "Spot");
+    
+    return matchesSearch && matchesStatus && matchesMarketType;
   });
 
-  const filteredClosedSignals = signals.filter(signal => {
-    const matchesSearch = signal.id.toLowerCase().includes(searchQuery.toLowerCase());
-    const isClosedSignal = signal.status === 'closed';
-    return matchesSearch && isClosedSignal;
-  });
-
-  const visibleFutureSignals = filteredSignals
-    .filter(signal => signal.marketType === "Future")
-    .slice(0, visibleCount);
-  
-  const visibleSpotSignals = filteredSignals
-    .filter(signal => signal.marketType === "Spot")
-    .slice(0, visibleCount);
-
-  const closedSignals = filteredClosedSignals
-    .sort((a, b) => {
-      const dateA = a.profitLoss?.closingTime ? new Date(a.profitLoss.closingTime) : new Date(0);
-      const dateB = b.profitLoss?.closingTime ? new Date(b.profitLoss.closingTime) : new Date(0);
-      return dateB.getTime() - dateA.getTime();
-    })
-    .slice(0, visibleClosedCount);
-
-  const hasMoreFuture = filteredSignals.filter(s => s.marketType === "Future").length > visibleCount;
-  const hasMoreSpot = filteredSignals.filter(s => s.marketType === "Spot").length > visibleCount;
-  const hasMoreClosed = filteredClosedSignals.length > visibleClosedCount;
-
-  const loadMore = () => {
-    setVisibleCount(prev => prev + 6);
-  };
-
-  const loadMoreClosed = () => {
-    setVisibleClosedCount(prev => prev + 6);
-  };
+  // Split signals by status
+  const activeSignals = filteredSignals.filter(s => s.status !== 'closed' && s.status !== 'pending');
+  const pendingSignals = filteredSignals.filter(s => s.status === 'pending');
+  const closedSignals = filteredSignals.filter(s => s.status === 'closed');
 
   return (
     <div className="container py-16">
-      <h1 className="text-3xl font-bold mb-8">Premium Signals</h1>
-
-      <SignalSearchAndFilter
-        onSearchChange={setSearchQuery}
-        onStatusFilter={setStatusFilter}
-        selectedStatus={statusFilter}
-      />
-
-      <Tabs defaultValue="future" className="w-full" onValueChange={setSelectedTab}>
-        <div className="flex justify-center mb-8">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="future">Future Signals</TabsTrigger>
-            <TabsTrigger value="spot">Spot Signals</TabsTrigger>
-          </TabsList>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">Premium Signals</h1>
+          <p className="text-muted-foreground mt-2">
+            Exclusive signals available only to premium members
+          </p>
         </div>
-        <TabsContent value="future">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {visibleFutureSignals.length > 0 ? (
-              visibleFutureSignals.map((signal) => (
-                <SignalCard key={signal.id} signal={signal} />
-              ))
-            ) : (
-              <div className="text-center py-12 col-span-full text-muted-foreground">
-                No premium signals available at the moment.
-              </div>
-            )}
+        <div className="mt-4 md:mt-0 p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
+          <div className="text-sm font-medium text-green-600">
+            Premium access expires on {new Date(subscription.expiresAt!).toLocaleDateString()}
           </div>
-          {hasMoreFuture && (
-            <div className="flex justify-center mt-8">
-              <Button onClick={loadMore} variant="outline">
-                Show More
-              </Button>
+        </div>
+      </div>
+      
+      <Tabs defaultValue="future" value={selectedTab} onValueChange={setSelectedTab}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <TabsList>
+            <TabsTrigger value="future">Futures</TabsTrigger>
+            <TabsTrigger value="spot">Spot</TabsTrigger>
+            <TabsTrigger value="all">All Types</TabsTrigger>
+          </TabsList>
+          
+          <SignalSearchAndFilter
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+          />
+        </div>
+        
+        <TabsContent value="future" className="space-y-6">
+          {/* Active Signals */}
+          {activeSignals.length > 0 ? (
+            <>
+              <h2 className="text-2xl font-semibold">Active Premium Signals</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {activeSignals.slice(0, visibleCount).map((signal) => (
+                  <SignalCard key={signal.id} signal={signal} />
+                ))}
+              </div>
+              {activeSignals.length > visibleCount && (
+                <div className="flex justify-center mt-8">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setVisibleCount(prev => prev + 6)}
+                  >
+                    Load More
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-12">
+              <h2 className="text-2xl font-semibold mb-2">No Active Premium Signals</h2>
+              <p className="text-muted-foreground">
+                There are no active premium signals matching your filters.
+              </p>
             </div>
           )}
-        </TabsContent>
-        <TabsContent value="spot">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {visibleSpotSignals.length > 0 ? (
-              visibleSpotSignals.map((signal) => (
-                <SignalCard key={signal.id} signal={signal} />
-              ))
-            ) : (
-              <div className="text-center py-12 col-span-full text-muted-foreground">
-                No premium signals available at the moment.
+          
+          {/* Pending Signals */}
+          <PendingSignals signals={filteredSignals} />
+          
+          {/* Closed Signals */}
+          {closedSignals.length > 0 && (
+            <>
+              <h2 className="text-2xl font-semibold mt-16">Recently Closed Signals</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+                {closedSignals.slice(0, visibleClosedCount).map((signal) => (
+                  <SignalCard key={signal.id} signal={signal} />
+                ))}
               </div>
-            )}
-          </div>
-          {hasMoreSpot && (
-            <div className="flex justify-center mt-8">
-              <Button onClick={loadMore} variant="outline">
-                Show More
-              </Button>
+              {closedSignals.length > visibleClosedCount && (
+                <div className="flex justify-center mt-8">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setVisibleClosedCount(prev => prev + 6)}
+                  >
+                    Load More Closed Signals
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="spot" className="space-y-6">
+          {/* Active Signals */}
+          {activeSignals.length > 0 ? (
+            <>
+              <h2 className="text-2xl font-semibold">Active Premium Signals</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {activeSignals.slice(0, visibleCount).map((signal) => (
+                  <SignalCard key={signal.id} signal={signal} />
+                ))}
+              </div>
+              {activeSignals.length > visibleCount && (
+                <div className="flex justify-center mt-8">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setVisibleCount(prev => prev + 6)}
+                  >
+                    Load More
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-12">
+              <h2 className="text-2xl font-semibold mb-2">No Active Premium Signals</h2>
+              <p className="text-muted-foreground">
+                There are no active premium signals matching your filters.
+              </p>
             </div>
+          )}
+          
+          {/* Pending Signals */}
+          <PendingSignals signals={filteredSignals} />
+          
+          {/* Closed Signals */}
+          {closedSignals.length > 0 && (
+            <>
+              <h2 className="text-2xl font-semibold mt-16">Recently Closed Signals</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+                {closedSignals.slice(0, visibleClosedCount).map((signal) => (
+                  <SignalCard key={signal.id} signal={signal} />
+                ))}
+              </div>
+              {closedSignals.length > visibleClosedCount && (
+                <div className="flex justify-center mt-8">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setVisibleClosedCount(prev => prev + 6)}
+                  >
+                    Load More Closed Signals
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="all" className="space-y-6">
+          {/* Active Signals */}
+          {activeSignals.length > 0 ? (
+            <>
+              <h2 className="text-2xl font-semibold">Active Premium Signals</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {activeSignals.slice(0, visibleCount).map((signal) => (
+                  <SignalCard key={signal.id} signal={signal} />
+                ))}
+              </div>
+              {activeSignals.length > visibleCount && (
+                <div className="flex justify-center mt-8">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setVisibleCount(prev => prev + 6)}
+                  >
+                    Load More
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-12">
+              <h2 className="text-2xl font-semibold mb-2">No Active Premium Signals</h2>
+              <p className="text-muted-foreground">
+                There are no active premium signals matching your filters.
+              </p>
+            </div>
+          )}
+          
+          {/* Pending Signals */}
+          <PendingSignals signals={filteredSignals} />
+          
+          {/* Closed Signals */}
+          {closedSignals.length > 0 && (
+            <>
+              <h2 className="text-2xl font-semibold mt-16">Recently Closed Signals</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+                {closedSignals.slice(0, visibleClosedCount).map((signal) => (
+                  <SignalCard key={signal.id} signal={signal} />
+                ))}
+              </div>
+              {closedSignals.length > visibleClosedCount && (
+                <div className="flex justify-center mt-8">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setVisibleClosedCount(prev => prev + 6)}
+                  >
+                    Load More Closed Signals
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </TabsContent>
       </Tabs>
-
-      {/* Recently Closed Signals Section */}
-      <div className="mt-16">
-        <h2 className="text-2xl font-bold mb-8">Recently Closed Signals</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {closedSignals
-            .filter(signal => signal.marketType === (selectedTab === 'future' ? 'Future' : 'Spot'))
-            .length > 0 ? (
-            closedSignals
-              .filter(signal => signal.marketType === (selectedTab === 'future' ? 'Future' : 'Spot'))
-              .map((signal) => (
-                <SignalCard key={signal.id} signal={signal} />
-              ))
-          ) : (
-            <div className="text-center py-12 col-span-full text-muted-foreground">
-              No closed signals available.
-            </div>
-          )}
-        </div>
-        {hasMoreClosed && (
-          <div className="flex justify-center mt-8">
-            <Button onClick={loadMoreClosed} variant="outline">
-              Show More Closed Signals
-            </Button>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

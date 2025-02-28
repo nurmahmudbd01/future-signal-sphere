@@ -103,6 +103,7 @@ export default function Admin() {
     const targetPrice = formData.get('targetPrice') as string;
     const stopLoss = formData.get('stopLoss') as string;
     const displayLocation = formData.get('displayLocation') as "Main" | "Premium" | "Both";
+    const status = formData.get('status') as "active" | "pending" | "closed";
     
     let signalData: Signal;
     
@@ -118,7 +119,8 @@ export default function Admin() {
         entryPrice,
         targetPrice,
         stopLoss,
-        displayLocation
+        displayLocation,
+        status
       };
     } else {
       // Create new signal
@@ -134,7 +136,7 @@ export default function Admin() {
         stopLoss,
         createdAt: new Date(),
         displayLocation,
-        status: "pending",
+        status: status, // Use the selected status
         approved: true
       };
     }
@@ -336,6 +338,24 @@ export default function Admin() {
                           required 
                         />
                       </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="status">Status</Label>
+                      <Select 
+                        name="status" 
+                        defaultValue={editingSignal?.status || "active"}
+                      >
+                        <SelectTrigger id="status">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          {editingSignal?.status === "closed" && (
+                            <SelectItem value="closed">Closed</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="displayLocation">Display Location</Label>
