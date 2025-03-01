@@ -199,10 +199,12 @@ export const getUserSubscription = async (userId: string) => {
     
     // Check if user has a premium role
     const isPremiumRole = userData.role === 'premium';
+    console.log("User role premium status:", isPremiumRole);
     
     // Check if user has a valid premium expiration date
     const premiumExpiresAt = userData.premiumExpiresAt;
     const isPremiumExpiration = premiumExpiresAt ? new Date(premiumExpiresAt) > new Date() : false;
+    console.log("Premium expiration status:", isPremiumExpiration, "expires at:", premiumExpiresAt);
     
     // User is premium if either condition is true
     const isPremium = isPremiumRole || isPremiumExpiration;
@@ -222,7 +224,6 @@ export const getUserSubscription = async (userId: string) => {
   }
 };
 
-// Update the getUserProfile function to handle premium status properly
 export const getUserProfile = async (uid: string) => {
   try {
     console.log("Fetching user profile for:", uid);
@@ -391,7 +392,6 @@ interface UserProfile {
   paymentHistory?: PaymentHistory[];
 }
 
-// Ensure the updateUserProfile function preserves role and premium status
 export const updateUserProfile = async (uid: string, data: Partial<UserProfile>) => {
   if (!auth.currentUser) {
     throw new Error('You must be logged in to update your profile');

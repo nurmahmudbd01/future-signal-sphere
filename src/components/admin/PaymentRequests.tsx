@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { collection, query, where, getDocs, updateDoc, doc, getDoc, DocumentData, Timestamp, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -46,7 +45,6 @@ export function PaymentRequests() {
     try {
       console.log("Fetching payment requests...");
       
-      // Query all requests, not just pending ones
       const requestsSnapshot = await getDocs(
         query(
           collection(db, 'paymentRequests'),
@@ -58,7 +56,6 @@ export function PaymentRequests() {
       
       const requestsData: PaymentRequest[] = [];
       
-      // Fetch user data for each request
       for (const docSnapshot of requestsSnapshot.docs) {
         const request = { 
           id: docSnapshot.id, 
@@ -67,7 +64,6 @@ export function PaymentRequests() {
         
         console.log(`Processing request ${request.id}`);
         
-        // Only proceed if userId exists
         if (request.userId) {
           try {
             const userDoc = await getDoc(doc(db, 'users', request.userId));
@@ -84,7 +80,6 @@ export function PaymentRequests() {
               });
               console.log(`Added request ${request.id} with user data`);
             } else {
-              // If user document doesn't exist, still add request but with default user info
               requestsData.push({
                 ...request,
                 user: {
@@ -96,7 +91,6 @@ export function PaymentRequests() {
             }
           } catch (error) {
             console.error(`Error fetching user data for request ${request.id}:`, error);
-            // Still add the request even if user data fetch fails
             requestsData.push({
               ...request,
               user: {
@@ -106,7 +100,6 @@ export function PaymentRequests() {
             });
           }
         } else {
-          // If there's no userId at all, add request without user info
           requestsData.push(request);
           console.log(`Added request ${request.id} without user ID`);
         }
@@ -125,7 +118,6 @@ export function PaymentRequests() {
   useEffect(() => {
     fetchRequests();
     
-    // Set up an interval to refresh the requests every 5 minutes
     const intervalId = setInterval(fetchRequests, 5 * 60 * 1000);
     
     return () => clearInterval(intervalId);
@@ -136,7 +128,6 @@ export function PaymentRequests() {
     try {
       console.log(`Processing payment request ${requestId} with status: ${status}`);
       
-      // 1. Get the request document
       const requestRef = doc(db, 'paymentRequests', requestId);
       const requestDoc = await getDoc(requestRef);
       
@@ -144,25 +135,20 @@ export function PaymentRequests() {
         throw new Error("Request not found");
       }
       
-      // 2. Extract request data with ID
       const request = { id: requestDoc.id, ...requestDoc.data() } as PaymentRequest;
       console.log(`Found request data:`, request);
 
-      // Validation check
       if (!request.userId) {
         throw new Error("Invalid request: missing user ID");
       }
 
-      // 3. Update request status first (making sure this operation succeeds before affecting user data)
       await updateDoc(requestRef, {
         status,
         updatedAt: new Date().toISOString(),
       });
       console.log(`Successfully updated request status to ${status}`);
 
-      // 4. Handle user updates based on approval status
       if (status === 'approved') {
-        // Get user document
         const userRef = doc(db, 'users', request.userId);
         const userDoc = await getDoc(userRef);
         
@@ -172,12 +158,10 @@ export function PaymentRequests() {
         }
         console.log(`Found user document for ${request.userId}`);
 
-        // Calculate premium expiration date (1 month from now)
         const expiryDate = new Date();
         expiryDate.setMonth(expiryDate.getMonth() + 1);
         console.log(`Setting premium expiry date to ${expiryDate.toISOString()}`);
 
-        // Create payment history record
         const paymentRecord: PaymentHistory = {
           requestId: request.id,
           amount: request.amount,
@@ -186,37 +170,32 @@ export function PaymentRequests() {
           status: 'approved'
         };
 
-        // Get existing user data with fallbacks for missing properties
         const userData = userDoc.data() || {};
         const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
 
-        // Prepare update data - explicitly specifying all fields to update
         const updateData = {
-          premiumExpiresAt: expiryDate.toISOString(),
           role: 'premium',
+          premiumExpiresAt: expiryDate.toISOString(),
           updatedAt: new Date().toISOString(),
           paymentHistory: [...existingHistory, paymentRecord]
         };
 
         console.log("Updating user with data:", JSON.stringify(updateData));
         
-        // Update user document with premium status
         try {
           await updateDoc(userRef, updateData);
-          console.log(`Successfully updated user document with premium status`);
+          console.log(`Successfully updated user ${request.userId} with premium status and role`);
           toast.success("Payment approved and premium access granted");
         } catch (userUpdateError) {
           console.error("Error updating user document:", userUpdateError);
           toast.error("Payment approved but failed to update user status");
         }
       } else {
-        // For rejected payments, record the history
         try {
           const userRef = doc(db, 'users', request.userId);
           const userDoc = await getDoc(userRef);
           
           if (userDoc.exists()) {
-            // Create payment history record for rejected payment
             const paymentRecord: PaymentHistory = {
               requestId: request.id,
               amount: request.amount,
@@ -228,16 +207,11 @@ export function PaymentRequests() {
             const userData = userDoc.data() || {};
             const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
 
-            // Ensure we're not overwriting any important data
-            const updateData = {
+            await updateDoc(userRef, {
               updatedAt: new Date().toISOString(),
               paymentHistory: [...existingHistory, paymentRecord]
-            };
-
-            console.log("Updating user with rejected payment data:", JSON.stringify(updateData));
+            });
             
-            // Update user document with payment history
-            await updateDoc(userRef, updateData);
             console.log(`Updated user document with rejected payment history`);
           } else {
             console.log(`User document not found for rejected payment ${request.userId}, skipping history update`);
@@ -250,7 +224,6 @@ export function PaymentRequests() {
         }
       }
 
-      // Refresh the request list to show the updated status
       await fetchRequests();
     } catch (error) {
       console.error("Error updating payment status:", error);
@@ -260,7 +233,6 @@ export function PaymentRequests() {
     }
   };
 
-  // Filter requests for display
   const pendingRequests = requests.filter(req => req.status === 'pending');
   const processedRequests = requests.filter(req => req.status === 'approved' || req.status === 'rejected');
 
@@ -293,7 +265,6 @@ export function PaymentRequests() {
         </Button>
       </div>
       
-      {/* Pending Requests Section */}
       <div className="space-y-4">
         <h3 className="text-xl font-medium flex items-center gap-2">
           Pending Requests
@@ -396,7 +367,6 @@ export function PaymentRequests() {
         </div>
       </div>
       
-      {/* Processed Requests Section */}
       {processedRequests.length > 0 && (
         <div className="space-y-4 mt-10">
           <h3 className="text-xl font-medium flex items-center gap-2">
