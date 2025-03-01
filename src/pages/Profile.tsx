@@ -1,21 +1,23 @@
 
-import { useState } from 'react';
-import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
 import { updateUserProfile, updateUserPassword } from "@/lib/firebase";
-import { User, Settings, Lock, Mail, MapPin, Globe, Phone } from "lucide-react";
+import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
+import { useNavigate } from "react-router-dom";
+import { CreditCard, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function Profile() {
-  const { user, userProfile, subscription, refreshUserProfile } = useAuth();
-  const { toast } = useToast();
+  const { user, userProfile, refreshUserProfile, subscription } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeSection, setActiveSection] = useState<'profile' | 'security'>('profile');
 
   if (!user) {
     navigate('/auth');
@@ -24,250 +26,333 @@ export default function Profile() {
 
   const handleProfileUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsLoading(true);
-
-    const formData = new FormData(e.currentTarget);
-    const profileData = {
-      username: formData.get('username') as string,
-      bio: formData.get('bio') as string,
-      phoneNumber: formData.get('phoneNumber') as string,
-      location: formData.get('location') as string,
-      website: formData.get('website') as string,
-    };
+    setIsSubmitting(true);
 
     try {
-      await updateUserProfile(user.uid, profileData);
-      await refreshUserProfile(); // Refresh user data after update
+      const formData = new FormData(e.currentTarget);
       
-      toast({
-        title: "Profile Updated",
-        description: "Your profile has been successfully updated.",
-      });
+      const profileData = {
+        username: formData.get('username') as string,
+        bio: formData.get('bio') as string,
+        location: formData.get('location') as string,
+        website: formData.get('website') as string,
+        phoneNumber: formData.get('phoneNumber') as string,
+        profileComplete: true
+      };
+      
+      await updateUserProfile(user.uid, profileData);
+      await refreshUserProfile();
+      toast.success("Profile updated successfully");
     } catch (error) {
       console.error("Profile update error:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update profile",
-      });
+      toast.error("Failed to update profile");
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handlePasswordUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handlePasswordChange = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsLoading(true);
-
-    const formData = new FormData(e.currentTarget);
-    const currentPassword = formData.get('currentPassword') as string;
-    const newPassword = formData.get('newPassword') as string;
-    const confirmPassword = formData.get('confirmPassword') as string;
-
-    if (newPassword !== confirmPassword) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "New passwords don't match",
-      });
-      setIsLoading(false);
-      return;
-    }
+    setIsChangingPassword(true);
 
     try {
+      const formData = new FormData(e.currentTarget);
+      const currentPassword = formData.get('currentPassword') as string;
+      const newPassword = formData.get('newPassword') as string;
+      const confirmPassword = formData.get('confirmPassword') as string;
+      
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        throw new Error("All fields are required");
+      }
+      
+      if (newPassword !== confirmPassword) {
+        throw new Error("New passwords don't match");
+      }
+      
+      if (newPassword.length < 6) {
+        throw new Error("Password must be at least 6 characters long");
+      }
+      
       await updateUserPassword(currentPassword, newPassword);
-      toast({
-        title: "Password Updated",
-        description: "Your password has been successfully updated.",
-      });
-      (e.target as HTMLFormElement).reset();
-    } catch (error) {
-      console.error("Password update error:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update password",
-      });
+      
+      // Reset the form
+      e.currentTarget.reset();
+      
+      toast.success("Password changed successfully");
+    } catch (error: any) {
+      console.error("Password change error:", error);
+      toast.error(error.message || "Failed to change password");
     } finally {
-      setIsLoading(false);
+      setIsChangingPassword(false);
     }
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long', 
+      day: 'numeric'
+    });
   };
 
   return (
-    <div className="container max-w-4xl mx-auto py-16 px-4">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">Account Settings</h1>
-        <p className="text-muted-foreground">Manage your account settings and preferences</p>
-        {subscription?.isPremium && (
-          <div className="mt-4 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-            <h2 className="text-lg font-semibold text-green-600 mb-2">Premium Member</h2>
-            <p className="text-sm text-green-600">
-              Your premium access expires on{' '}
-              {new Date(subscription.expiresAt!).toLocaleDateString()}
-            </p>
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-12 gap-6">
-        {/* Sidebar */}
-        <div className="col-span-12 md:col-span-3">
-          <div className="space-y-2">
-            <Button
-              variant={activeSection === 'profile' ? 'default' : 'ghost'}
-              className="w-full justify-start"
-              onClick={() => setActiveSection('profile')}
-            >
-              <User className="mr-2 h-4 w-4" />
-              Profile
-            </Button>
-            <Button
-              variant={activeSection === 'security' ? 'default' : 'ghost'}
-              className="w-full justify-start"
-              onClick={() => setActiveSection('security')}
-            >
-              <Lock className="mr-2 h-4 w-4" />
-              Security
-            </Button>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="col-span-12 md:col-span-9 space-y-6">
-          {activeSection === 'profile' && (
-            <Card>
-              <form onSubmit={handleProfileUpdate}>
+    <div className="container py-16">
+      <h1 className="text-3xl font-bold mb-8">Your Profile</h1>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="md:col-span-2">
+          <Tabs defaultValue="profile" className="w-full">
+            <TabsList className="mb-6">
+              <TabsTrigger value="profile">Profile Information</TabsTrigger>
+              <TabsTrigger value="password">Change Password</TabsTrigger>
+              <TabsTrigger value="payments">Payment History</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="profile">
+              <Card>
                 <CardHeader>
-                  <CardTitle>Profile Information</CardTitle>
-                  <CardDescription>
-                    Update your profile information and manage your account
-                  </CardDescription>
+                  <CardTitle>Your Information</CardTitle>
+                  <CardDescription>Update your personal information.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <div className="flex">
-                      <Mail className="w-4 h-4 mr-2 mt-3 text-muted-foreground" />
-                      <Input id="email" value={user.email || ''} disabled />
+                <form onSubmit={handleProfileUpdate}>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input 
+                        id="email" 
+                        type="email" 
+                        value={user.email || ''} 
+                        disabled 
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Your email can't be changed
+                      </p>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
-                    <div className="flex">
-                      <User className="w-4 h-4 mr-2 mt-3 text-muted-foreground" />
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Username</Label>
                       <Input 
                         id="username" 
                         name="username" 
-                        defaultValue={userProfile?.username || user.displayName || ''} 
-                        required 
+                        defaultValue={userProfile?.username || ''} 
+                        required
                       />
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="bio">Bio</Label>
-                    <Input 
-                      id="bio" 
-                      name="bio" 
-                      defaultValue={userProfile?.bio || ''} 
-                      placeholder="Tell us about yourself"
-                    />
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
+                    
                     <div className="space-y-2">
-                      <Label htmlFor="phoneNumber">Phone Number</Label>
-                      <div className="flex">
-                        <Phone className="w-4 h-4 mr-2 mt-3 text-muted-foreground" />
-                        <Input 
-                          id="phoneNumber" 
-                          name="phoneNumber" 
-                          defaultValue={userProfile?.phoneNumber || ''} 
-                          placeholder="+1 (555) 000-0000"
-                        />
-                      </div>
+                      <Label htmlFor="bio">Bio</Label>
+                      <Textarea 
+                        id="bio" 
+                        name="bio" 
+                        defaultValue={userProfile?.bio || ''}
+                        placeholder="Tell us about yourself"
+                        className="resize-none"
+                        rows={3}
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="location">Location</Label>
-                      <div className="flex">
-                        <MapPin className="w-4 h-4 mr-2 mt-3 text-muted-foreground" />
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="location">Location</Label>
                         <Input 
                           id="location" 
                           name="location" 
-                          defaultValue={userProfile?.location || ''} 
+                          defaultValue={userProfile?.location || ''}
                           placeholder="City, Country"
                         />
                       </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="website">Website</Label>
+                        <Input 
+                          id="website" 
+                          name="website" 
+                          defaultValue={userProfile?.website || ''}
+                          placeholder="https://yourwebsite.com"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="website">Website</Label>
-                    <div className="flex">
-                      <Globe className="w-4 h-4 mr-2 mt-3 text-muted-foreground" />
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="phoneNumber">Phone Number</Label>
                       <Input 
-                        id="website" 
-                        name="website" 
-                        defaultValue={userProfile?.website || ''} 
-                        placeholder="https://yourwebsite.com"
+                        id="phoneNumber" 
+                        name="phoneNumber" 
+                        defaultValue={userProfile?.phoneNumber || ''}
+                        placeholder="e.g. +1 (234) 567-8901"
                       />
                     </div>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? "Updating..." : "Update Profile"}
-                  </Button>
-                </CardFooter>
-              </form>
-            </Card>
-          )}
-
-          {activeSection === 'security' && (
-            <Card>
-              <form onSubmit={handlePasswordUpdate}>
+                  </CardContent>
+                  <CardFooter>
+                    <Button 
+                      type="submit" 
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="password">
+              <Card>
                 <CardHeader>
-                  <CardTitle>Security Settings</CardTitle>
-                  <CardDescription>
-                    Update your password and manage account security
-                  </CardDescription>
+                  <CardTitle>Change Password</CardTitle>
+                  <CardDescription>Update your account password.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="currentPassword">Current Password</Label>
-                    <Input
-                      id="currentPassword"
-                      name="currentPassword"
-                      type="password"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="newPassword">New Password</Label>
-                    <Input
-                      id="newPassword"
-                      name="newPassword"
-                      type="password"
-                      required
-                      minLength={6}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                    <Input
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      type="password"
-                      required
-                      minLength={6}
-                    />
-                  </div>
+                <form onSubmit={handlePasswordChange}>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="currentPassword">Current Password</Label>
+                      <Input 
+                        id="currentPassword" 
+                        name="currentPassword" 
+                        type="password" 
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="newPassword">New Password</Label>
+                      <Input 
+                        id="newPassword" 
+                        name="newPassword" 
+                        type="password" 
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Must be at least 6 characters long
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                      <Input 
+                        id="confirmPassword" 
+                        name="confirmPassword" 
+                        type="password" 
+                        required
+                      />
+                    </div>
+                  </CardContent>
+                  <CardFooter>
+                    <Button 
+                      type="submit" 
+                      disabled={isChangingPassword}
+                    >
+                      {isChangingPassword ? 'Changing Password...' : 'Change Password'}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="payments">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payment History</CardTitle>
+                  <CardDescription>View your past payments and subscriptions.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {userProfile?.paymentHistory && userProfile.paymentHistory.length > 0 ? (
+                    <div className="space-y-4">
+                      {userProfile.paymentHistory.map((payment, index) => (
+                        <div key={index} className="border rounded-lg p-4 space-y-2">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="font-medium flex items-center gap-2">
+                                Payment #{payment.requestId.substring(0, 8)}
+                                <Badge 
+                                  variant="outline" 
+                                  className={
+                                    payment.status === 'approved'
+                                      ? 'bg-green-50 text-green-700 hover:bg-green-50'
+                                      : 'bg-red-50 text-red-700 hover:bg-red-50'
+                                  }
+                                >
+                                  {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                                </Badge>
+                              </h3>
+                              <p className="text-sm text-muted-foreground">
+                                Date: {new Date(payment.date).toLocaleString()}
+                              </p>
+                            </div>
+                            <div className="text-lg font-bold">${payment.amount.toFixed(2)}</div>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Transaction ID</p>
+                            <p className="font-mono text-sm">{payment.transactionId}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">No payment history available.</p>
+                    </div>
+                  )}
                 </CardContent>
-                <CardFooter>
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? "Updating..." : "Change Password"}
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+        
+        <div>
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Account Status</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">Member Since</div>
+                <div>{formatDate(userProfile?.createdAt)}</div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">Account Type</div>
+                <div className="flex items-center">
+                  {userProfile?.role === 'admin' ? (
+                    <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-200">
+                      Admin
+                    </Badge>
+                  ) : subscription?.isPremium ? (
+                    <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">
+                      Premium
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">
+                      Free
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              
+              {subscription?.isPremium && (
+                <div className="space-y-2">
+                  <div className="text-sm font-medium text-muted-foreground">Premium Expires</div>
+                  <div className="flex items-center space-x-1 text-green-600">
+                    <Clock className="h-4 w-4" />
+                    <span>{formatDate(subscription?.expiresAt)}</span>
+                  </div>
+                </div>
+              )}
+              
+              <div className="pt-2">
+                {!subscription?.isPremium && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => navigate('/premium')}
+                  >
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Upgrade to Premium
                   </Button>
-                </CardFooter>
-              </form>
-            </Card>
-          )}
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

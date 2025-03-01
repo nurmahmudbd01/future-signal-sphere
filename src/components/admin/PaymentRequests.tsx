@@ -183,9 +183,11 @@ export function PaymentRequests() {
         await updateDoc(userRef, {
           premiumExpiresAt: expiryDate.toISOString(),
           updatedAt: new Date().toISOString(),
-          paymentHistory: [...existingHistory, paymentRecord]
+          paymentHistory: [...existingHistory, paymentRecord],
+          // Set user role to premium
+          role: 'premium'
         });
-        console.log(`Updated user document with premium status and payment history`);
+        console.log(`Updated user document with premium status, role, and payment history`);
 
         toast.success("Payment approved and premium access granted");
       } else {

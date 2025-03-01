@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignalCard } from "@/components/SignalCard";
@@ -396,10 +395,10 @@ export default function Premium() {
           </TabsList>
           
           <SignalSearchAndFilter
-            query={searchQuery}
-            onQueryChange={setSearchQuery}
-            status={statusFilter}
-            onStatusChange={setStatusFilter}
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
           />
         </div>
         

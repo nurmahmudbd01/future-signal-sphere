@@ -3,10 +3,18 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User } from 'firebase/auth';
 import { auth, getUserProfile, getUserSubscription } from '@/lib/firebase';
 
+interface PaymentHistory {
+  requestId: string;
+  amount: number;
+  transactionId: string;
+  date: string;
+  status: 'approved' | 'rejected';
+}
+
 interface UserProfile {
   email: string;
   username: string;
-  role: string; // 'user', 'admin'
+  role: string; // 'user', 'admin', 'premium'
   createdAt: string;
   lastLogin: string;
   premiumExpiresAt?: string;
@@ -16,6 +24,7 @@ interface UserProfile {
   website?: string;
   status: 'active' | 'suspended';
   profileComplete: boolean;
+  paymentHistory?: PaymentHistory[];
 }
 
 interface AuthContextType {

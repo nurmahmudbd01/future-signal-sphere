@@ -198,7 +198,8 @@ export const getUserProfile = async (uid: string) => {
         lastLogin: new Date().toISOString(),
         role: 'user',
         profileComplete: false,
-        status: 'active'
+        status: 'active',
+        paymentHistory: [] // Initialize empty payment history
       };
       
       console.log("Creating new user document in Firestore");
@@ -279,9 +280,18 @@ export const getUserSubscription = async (userId: string) => {
     }
 
     const userData = userDoc.data();
-    const isPremium = userData.premiumExpiresAt ? new Date(userData.premiumExpiresAt) > new Date() : false;
     
-    console.log("User premium status:", isPremium, "Expires:", userData.premiumExpiresAt || "N/A");
+    // Check if user role is premium or admin
+    const userRole = userData.role || 'user';
+    const isRolePremium = userRole === 'premium' || userRole === 'admin';
+    
+    // Check if user has an active premium subscription
+    const isPremiumExpiration = userData.premiumExpiresAt ? new Date(userData.premiumExpiresAt) > new Date() : false;
+    
+    // User is premium if either their role is premium/admin OR they have a valid premium expiration date
+    const isPremium = isRolePremium || isPremiumExpiration;
+    
+    console.log("User premium status:", isPremium, "Expires:", userData.premiumExpiresAt || "N/A", "Role:", userRole);
     
     return {
       isPremium,
@@ -387,12 +397,19 @@ export const updateUserProfile = async (uid: string, data: Partial<UserProfile>)
         role: 'user',
         profileComplete: false,
         status: 'active',
+        paymentHistory: [], // Initialize empty payment history
         ...data,
         updatedAt: new Date().toISOString()
       };
       await setDoc(userRef, userData);
     } else {
       console.log("User document exists, updating it");
+      
+      // Preserve existing payment history if not included in the update
+      if (!data.paymentHistory && docSnap.data().paymentHistory) {
+        data.paymentHistory = docSnap.data().paymentHistory;
+      }
+      
       await updateDoc(userRef, {
         ...data,
         updatedAt: new Date().toISOString()

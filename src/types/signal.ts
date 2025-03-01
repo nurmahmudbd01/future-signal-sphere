@@ -1,4 +1,3 @@
-
 export type SignalStatus = "pending" | "active" | "closed";
 
 export interface SignalProfitLoss {
@@ -22,4 +21,11 @@ export interface Signal {
   status: SignalStatus;
   profitLoss?: SignalProfitLoss;
   approved: boolean;
+}
+
+export interface SignalSearchAndFilterProps {
+  searchQuery: string;
+  onSearchQueryChange: (query: string) => void;
+  statusFilter: SignalStatus | 'all';
+  onStatusFilterChange: (status: SignalStatus | 'all') => void;
 }
