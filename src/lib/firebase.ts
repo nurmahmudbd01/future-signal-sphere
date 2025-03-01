@@ -237,6 +237,14 @@ export interface PaymentRequest {
   message?: string;
 }
 
+export interface PaymentHistory {
+  requestId: string;
+  amount: number;
+  transactionId: string;
+  date: string;
+  status: 'approved' | 'rejected';
+}
+
 export const createPaymentRequest = async (
   userId: string,
   paymentMethodId: string,
@@ -367,6 +375,7 @@ interface UserProfile {
   website?: string;
   status: 'active' | 'suspended';
   profileComplete: boolean;
+  paymentHistory?: PaymentHistory[];
 }
 
 export const updateUserProfile = async (uid: string, data: Partial<UserProfile>) => {
@@ -406,12 +415,13 @@ export const updateUserProfile = async (uid: string, data: Partial<UserProfile>)
       console.log("User document exists, updating it");
       
       // Preserve existing payment history if not included in the update
-      if (!data.paymentHistory && docSnap.data().paymentHistory) {
-        data.paymentHistory = docSnap.data().paymentHistory;
+      const updatedData = { ...data };
+      if (!updatedData.paymentHistory && docSnap.data().paymentHistory) {
+        updatedData.paymentHistory = docSnap.data().paymentHistory;
       }
       
       await updateDoc(userRef, {
-        ...data,
+        ...updatedData,
         updatedAt: new Date().toISOString()
       });
     }
