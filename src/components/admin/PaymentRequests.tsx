@@ -143,10 +143,10 @@ export function PaymentRequests() {
         throw new Error("Request not found");
       }
       
-      const request = requestDoc.data() as PaymentRequest;
+      const request = { ...requestDoc.data(), id: requestDoc.id } as PaymentRequest;
       console.log(`Found request data:`, request);
 
-      // Update request status
+      // Update request status first to ensure this part works
       await updateDoc(requestRef, {
         status,
         updatedAt: new Date().toISOString(),
@@ -154,10 +154,12 @@ export function PaymentRequests() {
       console.log(`Updated request status to ${status}`);
 
       if (status === 'approved') {
+        // Get user document
         const userRef = doc(db, 'users', request.userId);
         const userDoc = await getDoc(userRef);
         
         if (!userDoc.exists()) {
+          console.error("User document not found");
           throw new Error("User not found");
         }
         console.log(`Found user document for ${request.userId}`);
@@ -176,22 +178,27 @@ export function PaymentRequests() {
           status: 'approved'
         };
 
-        const userData = userDoc.data();
+        // Get existing user data with fallbacks for missing properties
+        const userData = userDoc.data() || {};
         const existingHistory = userData.paymentHistory || [];
 
-        // Update user document with premium status, expiration, and payment history
-        await updateDoc(userRef, {
+        // Prepare update data
+        const updateData = {
           premiumExpiresAt: expiryDate.toISOString(),
+          role: 'premium',
           updatedAt: new Date().toISOString(),
-          paymentHistory: [...existingHistory, paymentRecord],
-          // Set user role to premium
-          role: 'premium'
-        });
+          paymentHistory: [...existingHistory, paymentRecord]
+        };
+
+        console.log("Updating user with data:", updateData);
+        
+        // Update user document with premium status, expiration, and payment history
+        await updateDoc(userRef, updateData);
         console.log(`Updated user document with premium status, role, and payment history`);
 
         toast.success("Payment approved and premium access granted");
       } else {
-        // Even for rejected payments, record the history
+        // For rejected payments, record the history
         try {
           const userRef = doc(db, 'users', request.userId);
           const userDoc = await getDoc(userRef);
@@ -206,7 +213,7 @@ export function PaymentRequests() {
               status: 'rejected'
             };
 
-            const userData = userDoc.data();
+            const userData = userDoc.data() || {};
             const existingHistory = userData.paymentHistory || [];
 
             // Update user document with payment history
