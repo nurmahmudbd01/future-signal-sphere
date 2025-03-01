@@ -1,4 +1,3 @@
-
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -175,6 +174,55 @@ export const logoutUser = async () => {
   return signOut(auth);
 };
 
+export const getUserSubscription = async (userId: string) => {
+  try {
+    console.log("Checking subscription status for user:", userId);
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (!userDoc.exists()) {
+      console.log('User document not found for subscription check');
+      return {
+        isPremium: false,
+        expiresAt: null
+      };
+    }
+
+    const userData = userDoc.data();
+    
+    // Check if user is admin (admins always have premium access)
+    if (userData.role === 'admin') {
+      console.log("User is admin, granting premium access");
+      return {
+        isPremium: true,
+        expiresAt: null // Admins don't need expiration
+      };
+    }
+    
+    // Check if user has a premium role
+    const isPremiumRole = userData.role === 'premium';
+    
+    // Check if user has a valid premium expiration date
+    const premiumExpiresAt = userData.premiumExpiresAt;
+    const isPremiumExpiration = premiumExpiresAt ? new Date(premiumExpiresAt) > new Date() : false;
+    
+    // User is premium if either condition is true
+    const isPremium = isPremiumRole || isPremiumExpiration;
+    
+    console.log(`Subscription check result: isPremium=${isPremium}, role=${userData.role}, expiresAt=${premiumExpiresAt || 'N/A'}`);
+    
+    return {
+      isPremium,
+      expiresAt: premiumExpiresAt || null
+    };
+  } catch (error) {
+    console.error("Error fetching subscription status:", error);
+    return {
+      isPremium: false,
+      expiresAt: null
+    };
+  }
+};
+
+// Update the getUserProfile function to handle premium status properly
 export const getUserProfile = async (uid: string) => {
   try {
     console.log("Fetching user profile for:", uid);
@@ -189,20 +237,20 @@ export const getUserProfile = async (uid: string) => {
         throw new Error('No authenticated user found');
       }
       
-      // Create a new user document
+      // Create a new user document with default values
       const userData = {
         uid: user.uid,
         email: user.email,
         username: user.displayName || user.email?.split('@')[0] || 'User',
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString(),
-        role: 'user',
+        role: 'user', // Default role is 'user'
         profileComplete: false,
         status: 'active',
         paymentHistory: [] // Initialize empty payment history
       };
       
-      console.log("Creating new user document in Firestore");
+      console.log("Creating new user document in Firestore with data:", JSON.stringify(userData));
       await setDoc(doc(db, 'users', uid), userData);
       console.log("New user document created successfully");
       return userData;
@@ -279,41 +327,6 @@ export const createPaymentRequest = async (
   }
 };
 
-export const getUserSubscription = async (userId: string) => {
-  try {
-    console.log("Checking subscription status for user:", userId);
-    const userDoc = await getDoc(doc(db, 'users', userId));
-    if (!userDoc.exists()) {
-      throw new Error('User not found');
-    }
-
-    const userData = userDoc.data();
-    
-    // Check if user role is premium or admin
-    const userRole = userData.role || 'user';
-    const isRolePremium = userRole === 'premium' || userRole === 'admin';
-    
-    // Check if user has an active premium subscription
-    const isPremiumExpiration = userData.premiumExpiresAt ? new Date(userData.premiumExpiresAt) > new Date() : false;
-    
-    // User is premium if either their role is premium/admin OR they have a valid premium expiration date
-    const isPremium = isRolePremium || isPremiumExpiration;
-    
-    console.log("User premium status:", isPremium, "Expires:", userData.premiumExpiresAt || "N/A", "Role:", userRole);
-    
-    return {
-      isPremium,
-      expiresAt: userData.premiumExpiresAt
-    };
-  } catch (error) {
-    console.error("Error fetching subscription:", error);
-    return {
-      isPremium: false,
-      expiresAt: null
-    };
-  }
-};
-
 export const getUserPaymentRequests = async (userId: string) => {
   if (!auth.currentUser) {
     throw new Error('You must be logged in to view payment requests');
@@ -378,6 +391,7 @@ interface UserProfile {
   paymentHistory?: PaymentHistory[];
 }
 
+// Ensure the updateUserProfile function preserves role and premium status
 export const updateUserProfile = async (uid: string, data: Partial<UserProfile>) => {
   if (!auth.currentUser) {
     throw new Error('You must be logged in to update your profile');
@@ -410,16 +424,31 @@ export const updateUserProfile = async (uid: string, data: Partial<UserProfile>)
         ...data,
         updatedAt: new Date().toISOString()
       };
+      console.log("Creating new user document:", JSON.stringify(userData));
       await setDoc(userRef, userData);
     } else {
       console.log("User document exists, updating it");
+      const existingData = docSnap.data();
       
-      // Preserve existing payment history if not included in the update
+      // Important: preserve role and premium status unless explicitly updating them
       const updatedData = { ...data };
-      if (!updatedData.paymentHistory && docSnap.data().paymentHistory) {
-        updatedData.paymentHistory = docSnap.data().paymentHistory;
+      
+      // Preserve payment history if not included in the update
+      if (!updatedData.paymentHistory && existingData.paymentHistory) {
+        updatedData.paymentHistory = existingData.paymentHistory;
       }
       
+      // Preserve role if not explicitly changing it
+      if (!updatedData.role && existingData.role) {
+        updatedData.role = existingData.role;
+      }
+      
+      // Preserve premium expiration if not explicitly changing it
+      if (!updatedData.premiumExpiresAt && existingData.premiumExpiresAt) {
+        updatedData.premiumExpiresAt = existingData.premiumExpiresAt;
+      }
+      
+      console.log("Updating user document with:", JSON.stringify(updatedData));
       await updateDoc(userRef, {
         ...updatedData,
         updatedAt: new Date().toISOString()

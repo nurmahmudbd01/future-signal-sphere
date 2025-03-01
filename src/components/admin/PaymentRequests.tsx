@@ -136,6 +136,7 @@ export function PaymentRequests() {
     try {
       console.log(`Processing payment request ${requestId} with status: ${status}`);
       
+      // 1. Get the request document
       const requestRef = doc(db, 'paymentRequests', requestId);
       const requestDoc = await getDoc(requestRef);
       
@@ -143,16 +144,23 @@ export function PaymentRequests() {
         throw new Error("Request not found");
       }
       
-      const request = { ...requestDoc.data(), id: requestDoc.id } as PaymentRequest;
+      // 2. Extract request data with ID
+      const request = { id: requestDoc.id, ...requestDoc.data() } as PaymentRequest;
       console.log(`Found request data:`, request);
 
-      // Update request status first to ensure this part works
+      // Validation check
+      if (!request.userId) {
+        throw new Error("Invalid request: missing user ID");
+      }
+
+      // 3. Update request status first (making sure this operation succeeds before affecting user data)
       await updateDoc(requestRef, {
         status,
         updatedAt: new Date().toISOString(),
       });
-      console.log(`Updated request status to ${status}`);
+      console.log(`Successfully updated request status to ${status}`);
 
+      // 4. Handle user updates based on approval status
       if (status === 'approved') {
         // Get user document
         const userRef = doc(db, 'users', request.userId);
@@ -180,9 +188,9 @@ export function PaymentRequests() {
 
         // Get existing user data with fallbacks for missing properties
         const userData = userDoc.data() || {};
-        const existingHistory = userData.paymentHistory || [];
+        const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
 
-        // Prepare update data
+        // Prepare update data - explicitly specifying all fields to update
         const updateData = {
           premiumExpiresAt: expiryDate.toISOString(),
           role: 'premium',
@@ -190,13 +198,17 @@ export function PaymentRequests() {
           paymentHistory: [...existingHistory, paymentRecord]
         };
 
-        console.log("Updating user with data:", updateData);
+        console.log("Updating user with data:", JSON.stringify(updateData));
         
-        // Update user document with premium status, expiration, and payment history
-        await updateDoc(userRef, updateData);
-        console.log(`Updated user document with premium status, role, and payment history`);
-
-        toast.success("Payment approved and premium access granted");
+        // Update user document with premium status
+        try {
+          await updateDoc(userRef, updateData);
+          console.log(`Successfully updated user document with premium status`);
+          toast.success("Payment approved and premium access granted");
+        } catch (userUpdateError) {
+          console.error("Error updating user document:", userUpdateError);
+          toast.error("Payment approved but failed to update user status");
+        }
       } else {
         // For rejected payments, record the history
         try {
@@ -214,24 +226,31 @@ export function PaymentRequests() {
             };
 
             const userData = userDoc.data() || {};
-            const existingHistory = userData.paymentHistory || [];
+            const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
 
-            // Update user document with payment history
-            await updateDoc(userRef, {
+            // Ensure we're not overwriting any important data
+            const updateData = {
               updatedAt: new Date().toISOString(),
               paymentHistory: [...existingHistory, paymentRecord]
-            });
+            };
+
+            console.log("Updating user with rejected payment data:", JSON.stringify(updateData));
+            
+            // Update user document with payment history
+            await updateDoc(userRef, updateData);
             console.log(`Updated user document with rejected payment history`);
+          } else {
+            console.log(`User document not found for rejected payment ${request.userId}, skipping history update`);
           }
+          
+          toast.success("Payment request rejected");
         } catch (error) {
           console.error("Error updating user payment history for rejected payment:", error);
-          // We don't throw here as the main action (rejecting the payment) was successful
+          toast.success("Payment rejected, but failed to update history");
         }
-        
-        toast.success("Payment request rejected");
       }
 
-      // Refresh the request list
+      // Refresh the request list to show the updated status
       await fetchRequests();
     } catch (error) {
       console.error("Error updating payment status:", error);

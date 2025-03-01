@@ -66,10 +66,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserProfile(profile as UserProfile);
       console.log("User profile loaded:", profile);
       
-      // Check if user is admin
-      const isUserAdmin = profile?.role === 'admin';
+      // Check if user is admin - explicitly set this based on role
+      const userRole = profile?.role || 'user';
+      const isUserAdmin = userRole === 'admin';
       setIsAdmin(isUserAdmin);
-      console.log("User admin status:", isUserAdmin);
+      console.log("User admin status:", isUserAdmin, "with role:", userRole);
       
       // Check premium status
       const sub = await getUserSubscription(currentUser.uid);
@@ -87,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Function to manually refresh user profile data
   const refreshUserProfile = async () => {
     if (user) {
+      console.log("Manually refreshing user profile data");
       await loadUserData(user);
     }
   };
