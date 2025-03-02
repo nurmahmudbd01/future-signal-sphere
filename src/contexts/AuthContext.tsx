@@ -56,9 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("Full subscription data:", sub);
       
       // Determine premium status based on role and expiration date
-      const isPremiumRole = userRole === 'premium';
+      // Premium status is true if role is premium AND expiration date is in the future
+      // OR if role is admin (admins always have premium access)
+      const isPremiumRole = userRole === 'premium' || userRole === 'admin';
       const isPremiumExpiration = sub.expiresAt ? new Date(sub.expiresAt) > new Date() : false;
-      const isPremium = isPremiumRole && isPremiumExpiration;
+      const isPremium = (isPremiumRole && (isPremiumExpiration || userRole === 'admin'));
       
       setSubscription({
         isPremium: isPremium,
