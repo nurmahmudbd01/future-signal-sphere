@@ -74,8 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Check premium status
       const sub = await getUserSubscription(currentUser.uid);
-      setSubscription(sub);
-      console.log("User subscription status:", sub);
+      setSubscription({
+        ...sub,
+        isPremium: sub.isPremium || userRole === 'premium' // Ensure role-based premium is respected
+      });
+      console.log("User subscription status:", sub, "with role:", userRole);
       
     } catch (error) {
       console.error('Error fetching user data:', error);

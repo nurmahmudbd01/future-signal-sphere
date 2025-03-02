@@ -185,6 +185,17 @@ export function PaymentRequests() {
         try {
           await updateDoc(userRef, updateData);
           console.log(`Successfully updated user ${request.userId} with premium status and role`);
+          
+          const updatedUserDoc = await getDoc(userRef);
+          if (updatedUserDoc.exists()) {
+            const updatedUserData = updatedUserDoc.data();
+            console.log("Updated user data:", updatedUserData);
+            if (updatedUserData.role !== 'premium') {
+              console.warn("Role was not updated correctly, forcing update");
+              await updateDoc(userRef, { role: 'premium' });
+            }
+          }
+          
           toast.success("Payment approved and premium access granted");
         } catch (userUpdateError) {
           console.error("Error updating user document:", userUpdateError);

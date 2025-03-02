@@ -187,6 +187,7 @@ export const getUserSubscription = async (userId: string) => {
     }
 
     const userData = userDoc.data();
+    console.log("User data for subscription check:", userData);
     
     // Check if user is admin (admins always have premium access)
     if (userData.role === 'admin') {
@@ -197,9 +198,9 @@ export const getUserSubscription = async (userId: string) => {
       };
     }
     
-    // Check if user has a premium role
+    // Check if user has a premium role - this should be respected regardless of expiration
     const isPremiumRole = userData.role === 'premium';
-    console.log("User role premium status:", isPremiumRole);
+    console.log("User role premium status:", isPremiumRole, "with role:", userData.role);
     
     // Check if user has a valid premium expiration date
     const premiumExpiresAt = userData.premiumExpiresAt;
@@ -213,13 +214,15 @@ export const getUserSubscription = async (userId: string) => {
     
     return {
       isPremium,
-      expiresAt: premiumExpiresAt || null
+      expiresAt: premiumExpiresAt || null,
+      role: userData.role || 'user'
     };
   } catch (error) {
     console.error("Error fetching subscription status:", error);
     return {
       isPremium: false,
-      expiresAt: null
+      expiresAt: null,
+      role: 'user'
     };
   }
 };
