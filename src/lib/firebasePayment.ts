@@ -141,7 +141,8 @@ export const approvePaymentRequest = async (requestId: string, request: PaymentR
     // 3. Calculate expiry date (1 month from now)
     const expiryDate = new Date();
     expiryDate.setMonth(expiryDate.getMonth() + 1);
-    console.log(`Setting premium expiry date to ${expiryDate.toISOString()}`);
+    const expiryDateIso = expiryDate.toISOString();
+    console.log(`Setting premium expiry date to ${expiryDateIso}`);
 
     // 4. Create payment record
     const paymentRecord: PaymentHistory = {
@@ -156,45 +157,54 @@ export const approvePaymentRequest = async (requestId: string, request: PaymentR
     const userData = userDoc.data() || {};
     const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
 
-    // 6. Update user with premium status and payment record
+    // 6. Update user document in a single atomic operation to avoid race conditions
     try {
-      // First, explicitly update critical fields separately to ensure they take effect
-      await updateDoc(userRef, {
+      await setDoc(userRef, {
+        ...userData,
         role: 'premium',
-        premiumExpiresAt: expiryDate.toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      console.log(`First update: Set user ${request.userId} role to premium`);
-      
-      // Then update payment history in a separate operation
-      await updateDoc(userRef, {
+        premiumExpiresAt: expiryDateIso,
+        updatedAt: new Date().toISOString(),
         paymentHistory: [...existingHistory, paymentRecord]
-      });
-      console.log(`Second update: Added payment record to user ${request.userId}`);
+      }, { merge: true });
       
-      // Verify the update was successful by reading the document again
+      console.log(`Successfully updated user ${request.userId} to premium status until ${expiryDateIso}`);
+      
+      // Verify the update was successful
       const updatedUserDoc = await getDoc(userRef);
       if (updatedUserDoc.exists()) {
-        const updatedUserData = updatedUserDoc.data();
-        console.log("Updated user data:", updatedUserData);
+        const updatedData = updatedUserDoc.data();
+        console.log("Updated user data:", updatedData);
         
-        // If the role update didn't take, force it one more time
-        if (updatedUserData.role !== 'premium') {
-          console.warn("Role was not updated correctly, forcing final update");
-          await updateDoc(userRef, { 
-            role: 'premium',
-            premiumExpiresAt: expiryDate.toISOString()
-          });
+        if (updatedData.role !== 'premium') {
+          console.warn("Role was not updated to premium as expected, forcing update");
+          await updateDoc(userRef, { role: 'premium' });
+        }
+        
+        if (updatedData.premiumExpiresAt !== expiryDateIso) {
+          console.warn("Premium expiration was not set correctly, forcing update");
+          await updateDoc(userRef, { premiumExpiresAt: expiryDateIso });
         }
       }
       
       return { success: true };
     } catch (userUpdateError) {
       console.error("Error updating user document:", userUpdateError);
-      return {
-        success: false,
-        error: "Payment approved but failed to update user status"
-      };
+      
+      // Last resort: try one more time with a simpler update
+      try {
+        await updateDoc(userRef, { 
+          role: 'premium',
+          premiumExpiresAt: expiryDateIso
+        });
+        console.log("Fallback update completed");
+        return { success: true };
+      } catch (fallbackError) {
+        console.error("Even fallback update failed:", fallbackError);
+        return {
+          success: false,
+          error: "Payment approved but failed to update user status"
+        };
+      }
     }
   } catch (error) {
     console.error("Error approving payment:", error);

@@ -55,12 +55,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const sub = await getUserSubscription(currentUser.uid);
       console.log("Full subscription data:", sub);
       
+      // Determine premium status based on role and expiration date
+      const isPremiumRole = userRole === 'premium';
+      const isPremiumExpiration = sub.expiresAt ? new Date(sub.expiresAt) > new Date() : false;
+      const isPremium = isPremiumRole && isPremiumExpiration;
+      
       setSubscription({
-        ...sub,
-        isPremium: sub.isPremium || userRole === 'premium' // Ensure role-based premium is respected
+        isPremium: isPremium,
+        expiresAt: sub.expiresAt,
+        role: userRole
       });
+      
       console.log("User subscription status set:", {
-        isPremium: sub.isPremium || userRole === 'premium',
+        isPremium: isPremium,
         expiresAt: sub.expiresAt,
         role: userRole
       });
