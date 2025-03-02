@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { collection, query, where, getDocs, updateDoc, doc, getDoc, DocumentData, Timestamp, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, updateDoc, doc, getDoc, DocumentData, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Loader2, CheckCircle, AlertCircle, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { approvePaymentRequest, rejectPaymentRequest } from "@/lib/firebasePayment";
 
 interface UserData {
   id: string;
@@ -128,110 +129,30 @@ export function PaymentRequests() {
     try {
       console.log(`Processing payment request ${requestId} with status: ${status}`);
       
-      const requestRef = doc(db, 'paymentRequests', requestId);
-      const requestDoc = await getDoc(requestRef);
+      const request = requests.find(req => req.id === requestId);
       
-      if (!requestDoc.exists()) {
-        throw new Error("Request not found");
+      if (!request) {
+        throw new Error("Request not found in current state");
       }
       
-      const request = { id: requestDoc.id, ...requestDoc.data() } as PaymentRequest;
-      console.log(`Found request data:`, request);
-
       if (!request.userId) {
         throw new Error("Invalid request: missing user ID");
       }
 
-      await updateDoc(requestRef, {
-        status,
-        updatedAt: new Date().toISOString(),
-      });
-      console.log(`Successfully updated request status to ${status}`);
-
+      let result;
       if (status === 'approved') {
-        const userRef = doc(db, 'users', request.userId);
-        const userDoc = await getDoc(userRef);
-        
-        if (!userDoc.exists()) {
-          console.error("User document not found");
-          throw new Error("User not found");
-        }
-        console.log(`Found user document for ${request.userId}`);
-
-        const expiryDate = new Date();
-        expiryDate.setMonth(expiryDate.getMonth() + 1);
-        console.log(`Setting premium expiry date to ${expiryDate.toISOString()}`);
-
-        const paymentRecord: PaymentHistory = {
-          requestId: request.id,
-          amount: request.amount,
-          transactionId: request.transactionId,
-          date: new Date().toISOString(),
-          status: 'approved'
-        };
-
-        const userData = userDoc.data() || {};
-        const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
-
-        const updateData = {
-          role: 'premium',
-          premiumExpiresAt: expiryDate.toISOString(),
-          updatedAt: new Date().toISOString(),
-          paymentHistory: [...existingHistory, paymentRecord]
-        };
-
-        console.log("Updating user with data:", JSON.stringify(updateData));
-        
-        try {
-          await updateDoc(userRef, updateData);
-          console.log(`Successfully updated user ${request.userId} with premium status and role`);
-          
-          const updatedUserDoc = await getDoc(userRef);
-          if (updatedUserDoc.exists()) {
-            const updatedUserData = updatedUserDoc.data();
-            console.log("Updated user data:", updatedUserData);
-            if (updatedUserData.role !== 'premium') {
-              console.warn("Role was not updated correctly, forcing update");
-              await updateDoc(userRef, { role: 'premium' });
-            }
-          }
-          
+        result = await approvePaymentRequest(requestId, request);
+        if (result.success) {
           toast.success("Payment approved and premium access granted");
-        } catch (userUpdateError) {
-          console.error("Error updating user document:", userUpdateError);
-          toast.error("Payment approved but failed to update user status");
+        } else {
+          toast.error(result.error || "Failed to approve payment");
         }
       } else {
-        try {
-          const userRef = doc(db, 'users', request.userId);
-          const userDoc = await getDoc(userRef);
-          
-          if (userDoc.exists()) {
-            const paymentRecord: PaymentHistory = {
-              requestId: request.id,
-              amount: request.amount,
-              transactionId: request.transactionId,
-              date: new Date().toISOString(),
-              status: 'rejected'
-            };
-
-            const userData = userDoc.data() || {};
-            const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
-
-            await updateDoc(userRef, {
-              updatedAt: new Date().toISOString(),
-              paymentHistory: [...existingHistory, paymentRecord]
-            });
-            
-            console.log(`Updated user document with rejected payment history`);
-          } else {
-            console.log(`User document not found for rejected payment ${request.userId}, skipping history update`);
-          }
-          
+        result = await rejectPaymentRequest(requestId, request);
+        if (result.success) {
           toast.success("Payment request rejected");
-        } catch (error) {
-          console.error("Error updating user payment history for rejected payment:", error);
-          toast.success("Payment rejected, but failed to update history");
+        } else {
+          toast.error(result.error || "Failed to reject payment");
         }
       }
 
