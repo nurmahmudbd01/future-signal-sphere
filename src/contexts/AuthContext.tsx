@@ -51,13 +51,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAdmin(isUserAdmin);
       console.log("User admin status:", isUserAdmin, "with role:", userRole);
       
-      // Check premium status
+      // Check premium status - important to refresh this
       const sub = await getUserSubscription(currentUser.uid);
+      console.log("Full subscription data:", sub);
+      
       setSubscription({
         ...sub,
         isPremium: sub.isPremium || userRole === 'premium' // Ensure role-based premium is respected
       });
-      console.log("User subscription status:", sub, "with role:", userRole);
+      console.log("User subscription status set:", {
+        isPremium: sub.isPremium || userRole === 'premium',
+        expiresAt: sub.expiresAt,
+        role: userRole
+      });
       
     } catch (error) {
       console.error('Error fetching user data:', error);

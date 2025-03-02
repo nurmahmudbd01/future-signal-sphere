@@ -40,6 +40,7 @@ export function PaymentRequests() {
   const [requests, setRequests] = useState<PaymentRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null);
 
   const fetchRequests = async () => {
     setIsLoading(true);
@@ -126,6 +127,8 @@ export function PaymentRequests() {
 
   const handleApproval = async (requestId: string, status: 'approved' | 'rejected') => {
     setProcessingId(requestId);
+    setActionType(status === 'approved' ? 'approve' : 'reject');
+    
     try {
       console.log(`Processing payment request ${requestId} with status: ${status}`);
       
@@ -141,10 +144,14 @@ export function PaymentRequests() {
 
       let result;
       if (status === 'approved') {
+        console.log("Starting approval process for request:", request);
         result = await approvePaymentRequest(requestId, request);
+        console.log("Approval result:", result);
+        
         if (result.success) {
           toast.success("Payment approved and premium access granted");
         } else {
+          console.error("Failed to approve payment:", result.error);
           toast.error(result.error || "Failed to approve payment");
         }
       } else {
@@ -162,6 +169,7 @@ export function PaymentRequests() {
       toast.error("Failed to update payment status");
     } finally {
       setProcessingId(null);
+      setActionType(null);
     }
   };
 
@@ -254,7 +262,7 @@ export function PaymentRequests() {
                   disabled={!!processingId}
                   className="gap-1"
                 >
-                  {processingId === request.id ? (
+                  {processingId === request.id && actionType === 'reject' ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Processing...
@@ -272,7 +280,7 @@ export function PaymentRequests() {
                   disabled={!!processingId}
                   className="gap-1"
                 >
-                  {processingId === request.id ? (
+                  {processingId === request.id && actionType === 'approve' ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Processing...

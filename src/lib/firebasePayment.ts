@@ -1,4 +1,3 @@
-
 import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where, orderBy } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { auth } from './firebaseConfig';
@@ -114,7 +113,6 @@ export const getPaymentMethods = async () => {
   }
 };
 
-// Add dedicated functions for approving and rejecting payment requests
 export const approvePaymentRequest = async (requestId: string, request: PaymentRequest) => {
   try {
     console.log(`Approving payment request ${requestId}`);
@@ -159,18 +157,20 @@ export const approvePaymentRequest = async (requestId: string, request: PaymentR
     const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
 
     // 6. Update user with premium status and payment record
-    const updateData = {
-      role: 'premium',
-      premiumExpiresAt: expiryDate.toISOString(),
-      updatedAt: new Date().toISOString(),
-      paymentHistory: [...existingHistory, paymentRecord]
-    };
-
-    console.log("Updating user with data:", JSON.stringify(updateData));
-    
     try {
-      await updateDoc(userRef, updateData);
-      console.log(`Successfully updated user ${request.userId} with premium status and role`);
+      // First, explicitly update critical fields separately to ensure they take effect
+      await updateDoc(userRef, {
+        role: 'premium',
+        premiumExpiresAt: expiryDate.toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      console.log(`First update: Set user ${request.userId} role to premium`);
+      
+      // Then update payment history in a separate operation
+      await updateDoc(userRef, {
+        paymentHistory: [...existingHistory, paymentRecord]
+      });
+      console.log(`Second update: Added payment record to user ${request.userId}`);
       
       // Verify the update was successful by reading the document again
       const updatedUserDoc = await getDoc(userRef);
@@ -178,14 +178,13 @@ export const approvePaymentRequest = async (requestId: string, request: PaymentR
         const updatedUserData = updatedUserDoc.data();
         console.log("Updated user data:", updatedUserData);
         
-        // If the role update didn't take, force it
+        // If the role update didn't take, force it one more time
         if (updatedUserData.role !== 'premium') {
-          console.warn("Role was not updated correctly, forcing update");
-          await updateDoc(userRef, { role: 'premium' });
-          
-          // Verify one more time
-          const finalCheck = await getDoc(userRef);
-          console.log("Final user data check:", finalCheck.data());
+          console.warn("Role was not updated correctly, forcing final update");
+          await updateDoc(userRef, { 
+            role: 'premium',
+            premiumExpiresAt: expiryDate.toISOString()
+          });
         }
       }
       
