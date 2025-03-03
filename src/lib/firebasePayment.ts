@@ -1,4 +1,3 @@
-
 import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where, orderBy } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { auth } from './firebaseConfig';
@@ -146,7 +145,7 @@ export const approvePaymentRequest = async (requestId: string, request: PaymentR
     console.log(`Setting premium expiry date to ${expiryDateIso}`);
 
     // 4. Create payment record
-    const paymentRecord: PaymentHistory = {
+    const paymentRecord = {
       requestId: request.id,
       amount: request.amount,
       transactionId: request.transactionId,
@@ -158,56 +157,57 @@ export const approvePaymentRequest = async (requestId: string, request: PaymentR
     const userData = userDoc.data() || {};
     const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
 
-    // 6. Update user document - Simplified approach with direct document write
+    // 6. Try a completely different approach - use setDoc with direct object only
     try {
-      // First, update just the essential fields to guarantee they're set
-      await updateDoc(userRef, {
+      // Create a clean premium update object with only necessary fields
+      const premiumUpdate = {
         role: 'premium',
-        premiumExpiresAt: expiryDateIso
-      });
-      console.log(`Critical fields updated: role=premium, expires=${expiryDateIso}`);
-      
-      // Then update the rest
-      await updateDoc(userRef, {
+        premiumExpiresAt: expiryDateIso,
         updatedAt: new Date().toISOString(),
         paymentHistory: [...existingHistory, paymentRecord]
-      });
-      console.log(`Additional fields updated: paymentHistory and updatedAt`);
+      };
       
-      // Double-check the update
-      const verificationDoc = await getDoc(userRef);
-      const verificationData = verificationDoc.data();
-      console.log("Verification of updated user:", {
-        uid: request.userId,
-        role: verificationData?.role,
-        expiresAt: verificationData?.premiumExpiresAt
+      console.log("Applying premium update with setDoc and merge:", premiumUpdate);
+      
+      // Apply the update using setDoc with merge
+      await setDoc(userRef, premiumUpdate, { merge: true });
+      
+      // Verify the changes were applied
+      const verifyDoc = await getDoc(userRef);
+      const verifyData = verifyDoc.data();
+      
+      console.log("Verification after update:", {
+        role: verifyData?.role,
+        expiresAt: verifyData?.premiumExpiresAt
       });
       
-      if (verificationData?.role !== 'premium') {
-        console.warn("Role still not set to premium, attempting final forced update");
+      // Final check to ensure role was set
+      if (verifyData?.role !== 'premium') {
+        console.warn("Role still not premium after update, forcing role update");
+        // Last attempt - use most direct approach possible
         await setDoc(userRef, { role: 'premium' }, { merge: true });
       }
       
       return { success: true };
-    } catch (userUpdateError) {
-      console.error("Error updating user document:", userUpdateError);
+    } catch (updateError) {
+      console.error("Premium update failed:", updateError);
       
-      // Absolute last resort - try with setDoc instead of updateDoc
+      // Emergency fallback
       try {
-        console.log("Attempting fallback with setDoc and merge...");
-        const fallbackData = {
+        console.log("Attempting emergency fallback with minimal update");
+        // Try the simplest possible update - just the role and expiry, nothing else
+        await setDoc(userRef, {
           role: 'premium',
-          premiumExpiresAt: expiryDateIso,
-          updatedAt: new Date().toISOString()
-        };
-        await setDoc(userRef, fallbackData, { merge: true });
-        console.log("Fallback setDoc completed with:", fallbackData);
+          premiumExpiresAt: expiryDateIso
+        }, { merge: true });
+        
+        console.log("Emergency fallback completed");
         return { success: true };
-      } catch (fallbackError) {
-        console.error("All attempts to update user failed:", fallbackError);
+      } catch (emergencyError) {
+        console.error("All premium update attempts failed:", emergencyError);
         return {
           success: false,
-          error: "Payment approved but all attempts to update user status failed"
+          error: "All attempts to update premium status failed"
         };
       }
     }

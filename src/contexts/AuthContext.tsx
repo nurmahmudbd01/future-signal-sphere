@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from 'firebase/auth';
 import { auth, getUserProfile, getUserSubscription } from '@/lib/firebase';
@@ -82,7 +81,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Function to manually refresh user profile data
   const refreshUserProfile = async () => {
     if (user) {
       console.log("Manually refreshing user profile data");
