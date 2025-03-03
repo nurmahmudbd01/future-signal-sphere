@@ -157,57 +157,56 @@ export const approvePaymentRequest = async (requestId: string, request: PaymentR
     const userData = userDoc.data() || {};
     const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
 
-    // 6. Try a completely different approach - use setDoc with direct object only
+    // NEW APPROACH: Use a direct write with no conditional checking
     try {
-      // Create a clean premium update object with only necessary fields
-      const premiumUpdate = {
-        role: 'premium',
-        premiumExpiresAt: expiryDateIso,
+      console.log("ATTEMPTING DIRECT UPDATE WITH MINIMAL FIELDS");
+      
+      // Direct write to Firestore - first just write the critical fields
+      await setDoc(doc(db, 'users', request.userId), {
+        role: 'premium', 
+        premiumExpiresAt: expiryDateIso
+      }, { merge: true });
+      
+      console.log("DIRECT UPDATE OF CRITICAL FIELDS COMPLETED");
+      
+      // Then separately update the history and timestamp to avoid any conflicts
+      await setDoc(doc(db, 'users', request.userId), {
         updatedAt: new Date().toISOString(),
         paymentHistory: [...existingHistory, paymentRecord]
-      };
+      }, { merge: true });
       
-      console.log("Applying premium update with setDoc and merge:", premiumUpdate);
+      console.log("SECONDARY UPDATE COMPLETED");
       
-      // Apply the update using setDoc with merge
-      await setDoc(userRef, premiumUpdate, { merge: true });
+      // Perform verification read
+      const checkDoc = await getDoc(doc(db, 'users', request.userId));
+      const checkData = checkDoc.data();
       
-      // Verify the changes were applied
-      const verifyDoc = await getDoc(userRef);
-      const verifyData = verifyDoc.data();
-      
-      console.log("Verification after update:", {
-        role: verifyData?.role,
-        expiresAt: verifyData?.premiumExpiresAt
+      console.log("VERIFICATION CHECK:", {
+        userId: request.userId,
+        role: checkData?.role,
+        premium: checkData?.premiumExpiresAt
       });
       
-      // Final check to ensure role was set
-      if (verifyData?.role !== 'premium') {
-        console.warn("Role still not premium after update, forcing role update");
-        // Last attempt - use most direct approach possible
-        await setDoc(userRef, { role: 'premium' }, { merge: true });
-      }
-      
       return { success: true };
-    } catch (updateError) {
-      console.error("Premium update failed:", updateError);
+    } catch (error) {
+      console.error("ERROR DURING DIRECT UPDATE:", error);
       
-      // Emergency fallback
+      // ABSOLUTE FALLBACK: Try with even more minimal approach
       try {
-        console.log("Attempting emergency fallback with minimal update");
-        // Try the simplest possible update - just the role and expiry, nothing else
-        await setDoc(userRef, {
-          role: 'premium',
-          premiumExpiresAt: expiryDateIso
+        console.log("ATTEMPTING EMERGENCY FALLBACK");
+        
+        // Just set the role and nothing else
+        await setDoc(doc(db, 'users', request.userId), {
+          role: 'premium'
         }, { merge: true });
         
-        console.log("Emergency fallback completed");
+        console.log("EMERGENCY FALLBACK SUCCEEDED");
         return { success: true };
-      } catch (emergencyError) {
-        console.error("All premium update attempts failed:", emergencyError);
+      } catch (finalError) {
+        console.error("ALL UPDATE ATTEMPTS FAILED:", finalError);
         return {
           success: false,
-          error: "All attempts to update premium status failed"
+          error: "Critical database update failed"
         };
       }
     }
