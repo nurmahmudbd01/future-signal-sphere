@@ -115,36 +115,23 @@ export const getPaymentMethods = async () => {
 
 export const approvePaymentRequest = async (requestId: string, request: PaymentRequest) => {
   try {
-    console.log(`Approving payment request ${requestId}`);
+    console.log(`Starting payment approval process for ${requestId}`);
     
-    // 1. Update the payment request status
+    // 1. Update the payment request status to approved
     const requestRef = doc(db, 'paymentRequests', requestId);
     await updateDoc(requestRef, {
       status: 'approved',
       updatedAt: new Date().toISOString(),
     });
-    console.log(`Successfully updated request status to approved`);
+    console.log(`Payment request status updated to approved`);
 
-    // 2. Get user document
-    const userRef = doc(db, 'users', request.userId);
-    const userDoc = await getDoc(userRef);
-    
-    if (!userDoc.exists()) {
-      console.error("User document not found");
-      return {
-        success: false,
-        error: "User not found"
-      };
-    }
-    console.log(`Found user document for ${request.userId}`);
-
-    // 3. Calculate expiry date (1 month from now)
+    // 2. Calculate expiry date (1 month from now)
     const expiryDate = new Date();
     expiryDate.setMonth(expiryDate.getMonth() + 1);
     const expiryDateIso = expiryDate.toISOString();
-    console.log(`Setting premium expiry date to ${expiryDateIso}`);
+    console.log(`Premium expires at: ${expiryDateIso}`);
 
-    // 4. Create payment record
+    // 3. Create payment record
     const paymentRecord = {
       requestId: request.id,
       amount: request.amount,
@@ -153,54 +140,57 @@ export const approvePaymentRequest = async (requestId: string, request: PaymentR
       status: 'approved'
     };
 
-    // 5. Get existing payment history
-    const userData = userDoc.data() || {};
+    // 4. Get user's existing payment history if any
+    const userRef = doc(db, 'users', request.userId);
+    const userDoc = await getDoc(userRef);
+    const userData = userDoc.exists() ? userDoc.data() : {};
     const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
-
-    // NEW APPROACH: Use a direct write with no conditional checking
+    
+    // 5. CRITICAL UPDATE - Most direct and simple approach with explicit operations
     try {
-      console.log("ATTEMPTING DIRECT UPDATE WITH MINIMAL FIELDS");
-      
-      // Direct write to Firestore - first just write the critical fields
-      await setDoc(doc(db, 'users', request.userId), {
-        role: 'premium', 
+      // STEP 1: First update ONLY the critical fields - role and expiry date
+      console.log("CRITICAL UPDATE PHASE 1: Setting role and expiry date");
+      await updateDoc(userRef, {
+        role: 'premium',
         premiumExpiresAt: expiryDateIso
-      }, { merge: true });
+      });
       
-      console.log("DIRECT UPDATE OF CRITICAL FIELDS COMPLETED");
-      
-      // Then separately update the history and timestamp to avoid any conflicts
-      await setDoc(doc(db, 'users', request.userId), {
+      // STEP 2: Then separately update the history to avoid any potential conflicts
+      console.log("CRITICAL UPDATE PHASE 2: Updating payment history");
+      await updateDoc(userRef, {
         updatedAt: new Date().toISOString(),
         paymentHistory: [...existingHistory, paymentRecord]
-      }, { merge: true });
-      
-      console.log("SECONDARY UPDATE COMPLETED");
-      
-      // Perform verification read
-      const checkDoc = await getDoc(doc(db, 'users', request.userId));
-      const checkData = checkDoc.data();
-      
-      console.log("VERIFICATION CHECK:", {
-        userId: request.userId,
-        role: checkData?.role,
-        premium: checkData?.premiumExpiresAt
       });
+      
+      // STEP 3: Verify the update was successful
+      const verifyDoc = await getDoc(userRef);
+      const verifyData = verifyDoc.data();
+      
+      console.log("VERIFICATION CHECK RESULT:", {
+        userId: request.userId,
+        role: verifyData?.role,
+        premiumExpiresAt: verifyData?.premiumExpiresAt,
+        historyLength: verifyData?.paymentHistory?.length
+      });
+      
+      // If for some reason the role is still not premium, try a final attempt with setDoc
+      if (verifyData?.role !== 'premium') {
+        console.log("WARNING: Role still not updated correctly, using setDoc as fallback");
+        await setDoc(userRef, {
+          role: 'premium',
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
       
       return { success: true };
     } catch (error) {
-      console.error("ERROR DURING DIRECT UPDATE:", error);
+      console.error("ERROR DURING USER UPDATE:", error);
       
-      // ABSOLUTE FALLBACK: Try with even more minimal approach
+      // FALLBACK: If all else fails, try the most minimal update possible
       try {
-        console.log("ATTEMPTING EMERGENCY FALLBACK");
-        
-        // Just set the role and nothing else
-        await setDoc(doc(db, 'users', request.userId), {
-          role: 'premium'
-        }, { merge: true });
-        
-        console.log("EMERGENCY FALLBACK SUCCEEDED");
+        console.log("ATTEMPTING MINIMAL FALLBACK UPDATE");
+        await setDoc(userRef, { role: 'premium' }, { merge: true });
+        console.log("MINIMAL FALLBACK UPDATE SUCCEEDED");
         return { success: true };
       } catch (finalError) {
         console.error("ALL UPDATE ATTEMPTS FAILED:", finalError);
@@ -211,7 +201,7 @@ export const approvePaymentRequest = async (requestId: string, request: PaymentR
       }
     }
   } catch (error) {
-    console.error("Error approving payment:", error);
+    console.error("Error in payment approval process:", error);
     return {
       success: false,
       error: "Failed to approve payment"
