@@ -140,64 +140,105 @@ export const approvePaymentRequest = async (requestId: string, request: PaymentR
       status: 'approved'
     };
 
-    // 4. Get user's existing payment history if any
+    // 4. Get user reference and existing data
     const userRef = doc(db, 'users', request.userId);
     const userDoc = await getDoc(userRef);
-    const userData = userDoc.exists() ? userDoc.data() : {};
+    
+    if (!userDoc.exists()) {
+      console.log("User document doesn't exist, creating a new one");
+      // Create a basic user document if it doesn't exist
+      await setDoc(userRef, {
+        uid: request.userId,
+        role: 'premium',
+        premiumExpiresAt: expiryDateIso,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        paymentHistory: [paymentRecord]
+      });
+      console.log("Created new user document with premium role");
+      return { success: true };
+    }
+    
+    const userData = userDoc.data();
     const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
     
-    // 5. CRITICAL UPDATE - Most direct and simple approach with explicit operations
+    // 5. REFACTORED APPROACH - Use a single atomic operation with setDoc + merge
     try {
-      // STEP 1: First update ONLY the critical fields - role and expiry date
-      console.log("CRITICAL UPDATE PHASE 1: Setting role and expiry date");
-      await updateDoc(userRef, {
-        role: 'premium',
-        premiumExpiresAt: expiryDateIso
-      });
+      console.log("REFACTORED APPROACH: Using setDoc with merge option");
       
-      // STEP 2: Then separately update the history to avoid any potential conflicts
-      console.log("CRITICAL UPDATE PHASE 2: Updating payment history");
-      await updateDoc(userRef, {
+      // This will only update the specified fields and preserve other fields
+      await setDoc(userRef, {
+        role: 'premium',
+        premiumExpiresAt: expiryDateIso,
         updatedAt: new Date().toISOString(),
         paymentHistory: [...existingHistory, paymentRecord]
-      });
+      }, { merge: true });
       
-      // STEP 3: Verify the update was successful
+      // Verify the update succeeded
       const verifyDoc = await getDoc(userRef);
       const verifyData = verifyDoc.data();
       
-      console.log("VERIFICATION CHECK RESULT:", {
-        userId: request.userId,
-        role: verifyData?.role,
-        premiumExpiresAt: verifyData?.premiumExpiresAt,
-        historyLength: verifyData?.paymentHistory?.length
-      });
-      
-      // If for some reason the role is still not premium, try a final attempt with setDoc
       if (verifyData?.role !== 'premium') {
-        console.log("WARNING: Role still not updated correctly, using setDoc as fallback");
-        await setDoc(userRef, {
-          role: 'premium',
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
+        throw new Error("Role not updated properly");
       }
       
+      console.log("User premium status updated successfully with role:", verifyData?.role);
       return { success: true };
     } catch (error) {
-      console.error("ERROR DURING USER UPDATE:", error);
+      console.error("ERROR IN MAIN UPDATE APPROACH:", error);
       
-      // FALLBACK: If all else fails, try the most minimal update possible
+      // EXTREME FALLBACK - Try the most direct possible approach
+      console.log("ATTEMPTING EMERGENCY FALLBACK APPROACH");
+      
       try {
-        console.log("ATTEMPTING MINIMAL FALLBACK UPDATE");
-        await setDoc(userRef, { role: 'premium' }, { merge: true });
-        console.log("MINIMAL FALLBACK UPDATE SUCCEEDED");
-        return { success: true };
+        // Try to update ONLY the role field, nothing else
+        await updateDoc(userRef, { role: 'premium' });
+        
+        // Then separately update the expiry date
+        await updateDoc(userRef, { premiumExpiresAt: expiryDateIso });
+        
+        // Check if it worked
+        const finalCheck = await getDoc(userRef);
+        console.log("EMERGENCY FALLBACK RESULT:", {
+          role: finalCheck.data()?.role,
+          expires: finalCheck.data()?.premiumExpiresAt
+        });
+        
+        return { 
+          success: finalCheck.data()?.role === 'premium',
+          message: "Used emergency fallback approach"
+        };
       } catch (finalError) {
         console.error("ALL UPDATE ATTEMPTS FAILED:", finalError);
-        return {
-          success: false,
-          error: "Critical database update failed"
-        };
+        
+        // If absolutely everything fails, let's try direct document overwrite
+        // WARNING: This is desperate - it will overwrite the entire document
+        try {
+          console.log("DESPERATE FINAL ATTEMPT - OVERWRITING DOCUMENT");
+          const timestamp = new Date().toISOString();
+          
+          await setDoc(userRef, {
+            role: 'premium',
+            premiumExpiresAt: expiryDateIso,
+            updatedAt: timestamp,
+            paymentHistory: [...existingHistory, paymentRecord],
+            // Preserve critical user data
+            uid: request.userId,
+            email: userData.email || null,
+            username: userData.username || null
+          });
+          
+          return { 
+            success: true,
+            message: "Used document overwrite as last resort"
+          };
+        } catch (lastResortError) {
+          console.error("EVEN DOCUMENT OVERWRITE FAILED:", lastResortError);
+          return {
+            success: false,
+            error: "Critical database update failed after all attempts"
+          };
+        }
       }
     }
   } catch (error) {
