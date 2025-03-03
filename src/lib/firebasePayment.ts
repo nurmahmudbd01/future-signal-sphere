@@ -1,6 +1,7 @@
 import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where, orderBy } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { auth } from './firebaseConfig';
+import { approveUserPayment } from './paymentApproval';
 
 export interface PaymentMethod {
   id: string;
@@ -114,140 +115,8 @@ export const getPaymentMethods = async () => {
 };
 
 export const approvePaymentRequest = async (requestId: string, request: PaymentRequest) => {
-  try {
-    console.log(`Starting payment approval process for ${requestId}`);
-    
-    // 1. Update the payment request status to approved
-    const requestRef = doc(db, 'paymentRequests', requestId);
-    await updateDoc(requestRef, {
-      status: 'approved',
-      updatedAt: new Date().toISOString(),
-    });
-    console.log(`Payment request status updated to approved`);
-
-    // 2. Calculate expiry date (1 month from now)
-    const expiryDate = new Date();
-    expiryDate.setMonth(expiryDate.getMonth() + 1);
-    const expiryDateIso = expiryDate.toISOString();
-    console.log(`Premium expires at: ${expiryDateIso}`);
-
-    // 3. Create payment record
-    const paymentRecord = {
-      requestId: request.id,
-      amount: request.amount,
-      transactionId: request.transactionId,
-      date: new Date().toISOString(),
-      status: 'approved'
-    };
-
-    // 4. Get user reference and existing data
-    const userRef = doc(db, 'users', request.userId);
-    const userDoc = await getDoc(userRef);
-    
-    if (!userDoc.exists()) {
-      console.log("User document doesn't exist, creating a new one");
-      // Create a basic user document if it doesn't exist
-      await setDoc(userRef, {
-        uid: request.userId,
-        role: 'premium',
-        premiumExpiresAt: expiryDateIso,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        paymentHistory: [paymentRecord]
-      });
-      console.log("Created new user document with premium role");
-      return { success: true };
-    }
-    
-    const userData = userDoc.data();
-    const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
-    
-    // 5. REFACTORED APPROACH - Use a single atomic operation with setDoc + merge
-    try {
-      console.log("REFACTORED APPROACH: Using setDoc with merge option");
-      
-      // This will only update the specified fields and preserve other fields
-      await setDoc(userRef, {
-        role: 'premium',
-        premiumExpiresAt: expiryDateIso,
-        updatedAt: new Date().toISOString(),
-        paymentHistory: [...existingHistory, paymentRecord]
-      }, { merge: true });
-      
-      // Verify the update succeeded
-      const verifyDoc = await getDoc(userRef);
-      const verifyData = verifyDoc.data();
-      
-      if (verifyData?.role !== 'premium') {
-        throw new Error("Role not updated properly");
-      }
-      
-      console.log("User premium status updated successfully with role:", verifyData?.role);
-      return { success: true };
-    } catch (error) {
-      console.error("ERROR IN MAIN UPDATE APPROACH:", error);
-      
-      // EXTREME FALLBACK - Try the most direct possible approach
-      console.log("ATTEMPTING EMERGENCY FALLBACK APPROACH");
-      
-      try {
-        // Try to update ONLY the role field, nothing else
-        await updateDoc(userRef, { role: 'premium' });
-        
-        // Then separately update the expiry date
-        await updateDoc(userRef, { premiumExpiresAt: expiryDateIso });
-        
-        // Check if it worked
-        const finalCheck = await getDoc(userRef);
-        console.log("EMERGENCY FALLBACK RESULT:", {
-          role: finalCheck.data()?.role,
-          expires: finalCheck.data()?.premiumExpiresAt
-        });
-        
-        return { 
-          success: finalCheck.data()?.role === 'premium',
-          message: "Used emergency fallback approach"
-        };
-      } catch (finalError) {
-        console.error("ALL UPDATE ATTEMPTS FAILED:", finalError);
-        
-        // If absolutely everything fails, let's try direct document overwrite
-        // WARNING: This is desperate - it will overwrite the entire document
-        try {
-          console.log("DESPERATE FINAL ATTEMPT - OVERWRITING DOCUMENT");
-          const timestamp = new Date().toISOString();
-          
-          await setDoc(userRef, {
-            role: 'premium',
-            premiumExpiresAt: expiryDateIso,
-            updatedAt: timestamp,
-            paymentHistory: [...existingHistory, paymentRecord],
-            // Preserve critical user data
-            uid: request.userId,
-            email: userData.email || null,
-            username: userData.username || null
-          });
-          
-          return { 
-            success: true,
-            message: "Used document overwrite as last resort"
-          };
-        } catch (lastResortError) {
-          console.error("EVEN DOCUMENT OVERWRITE FAILED:", lastResortError);
-          return {
-            success: false,
-            error: "Critical database update failed after all attempts"
-          };
-        }
-      }
-    }
-  } catch (error) {
-    console.error("Error in payment approval process:", error);
-    return {
-      success: false,
-      error: "Failed to approve payment"
-    };
-  }
+  console.log(`Delegating payment approval to specialized module for ${requestId}`);
+  return approveUserPayment(requestId, request);
 };
 
 export const rejectPaymentRequest = async (requestId: string, request: PaymentRequest) => {

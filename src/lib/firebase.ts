@@ -6,3 +6,4 @@ export * from './firebaseConfig';
 export * from './firebaseAuth';
 export * from './firebaseProfile';
 export * from './firebasePayment';
+export * from './paymentApproval';
