@@ -86,7 +86,7 @@ export const getUserSubscription = async (userId: string) => {
       };
     }
     
-    // Check if user has a premium role - this should be respected regardless of expiration
+    // Check if user has a premium role
     const isPremiumRole = userData.role === 'premium';
     console.log("User role premium status:", isPremiumRole, "with role:", userData.role);
     
@@ -95,8 +95,8 @@ export const getUserSubscription = async (userId: string) => {
     const isPremiumExpiration = premiumExpiresAt ? new Date(premiumExpiresAt) > new Date() : false;
     console.log("Premium expiration status:", isPremiumExpiration, "expires at:", premiumExpiresAt);
     
-    // User is premium if either condition is true
-    const isPremium = isPremiumRole || isPremiumExpiration;
+    // User is premium if role is premium AND expiration date is in the future
+    const isPremium = isPremiumRole && isPremiumExpiration;
     
     console.log(`Subscription check result: isPremium=${isPremium}, role=${userData.role}, expiresAt=${premiumExpiresAt || 'N/A'}`);
     

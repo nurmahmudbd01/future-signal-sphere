@@ -8,7 +8,7 @@ import { PaymentRequest, PaymentHistory } from './firebasePayment';
  * Isolated from other payment functions for reliability
  */
 export const approveUserPayment = async (requestId: string, request: PaymentRequest) => {
-  console.log(`[PAYMENT APPROVAL] Starting robust payment approval process for ${requestId}`);
+  console.log(`[PAYMENT APPROVAL] Starting payment approval process for ${requestId}`);
   
   try {
     // 1. Update the payment request status first
@@ -34,15 +34,15 @@ export const approveUserPayment = async (requestId: string, request: PaymentRequ
       status: 'approved'
     };
 
-    // 4. Get user reference and check if user exists
+    // 4. Get user reference
     const userRef = doc(db, 'users', request.userId);
+    
+    // 5. Check if user document exists
     const userDoc = await getDoc(userRef);
     
-    // 5. Handle case where user document doesn't exist yet
     if (!userDoc.exists()) {
-      console.log(`[PAYMENT APPROVAL] User document doesn't exist, creating a new one for ${request.userId}`);
-      
-      // Create a basic user document
+      console.log(`[PAYMENT APPROVAL] User document doesn't exist, creating new one`);
+      // Create a basic user document with premium role
       await setDoc(userRef, {
         uid: request.userId,
         role: 'premium',
@@ -52,116 +52,65 @@ export const approveUserPayment = async (requestId: string, request: PaymentRequ
         paymentHistory: [paymentRecord]
       });
       
-      // Verify creation worked
-      const verifyNewDoc = await getDoc(userRef);
-      if (verifyNewDoc.exists() && verifyNewDoc.data()?.role === 'premium') {
-        console.log(`[PAYMENT APPROVAL] Successfully created new user with premium role`);
-        return { success: true };
-      } else {
-        throw new Error("Failed to create new user document with premium role");
-      }
+      console.log(`[PAYMENT APPROVAL] Created new user document with premium role`);
+      return { success: true };
     }
     
-    // 6. For existing users - direct approach with critical fields ONLY
-    console.log(`[PAYMENT APPROVAL] User exists, using direct approach to update premium status`);
+    // 6. For existing users, use setDoc with merge option
+    console.log(`[PAYMENT APPROVAL] User exists, updating with merge`);
     
-    // STRATEGY 1: Update role first (most critical field)
     try {
-      console.log(`[PAYMENT APPROVAL] STRATEGY 1: Updating role field directly`);
-      await updateDoc(userRef, { role: 'premium' });
-      
-      // Verify role update worked
-      const roleVerify = await getDoc(userRef);
-      if (roleVerify.data()?.role !== 'premium') {
-        throw new Error("Role update failed verification");
-      }
-      console.log(`[PAYMENT APPROVAL] Role successfully updated to premium`);
-      
-      // STRATEGY 2: Update expiry date next
-      console.log(`[PAYMENT APPROVAL] STRATEGY 2: Updating expiry date directly`);
-      await updateDoc(userRef, { premiumExpiresAt: expiryDateIso });
-      
-      // Verify expiry update worked
-      const expiryVerify = await getDoc(userRef);
-      if (expiryVerify.data()?.premiumExpiresAt !== expiryDateIso) {
-        throw new Error("Expiry date update failed verification");
-      }
-      console.log(`[PAYMENT APPROVAL] Expiry date successfully updated`);
-      
-      // STRATEGY 3: Update timestamp (less critical)
-      console.log(`[PAYMENT APPROVAL] STRATEGY 3: Updating timestamp`);
-      await updateDoc(userRef, { updatedAt: new Date().toISOString() });
-      
-      // STRATEGY 4: Update payment history (least critical)
-      console.log(`[PAYMENT APPROVAL] STRATEGY 4: Updating payment history`);
+      // Get existing data to preserve it
       const userData = userDoc.data();
       const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
-      await updateDoc(userRef, { 
-        paymentHistory: [...existingHistory, paymentRecord] 
-      });
       
-      // Final verification
-      const finalVerify = await getDoc(userRef);
-      const finalData = finalVerify.data();
+      // Use setDoc with merge to update only specific fields
+      await setDoc(userRef, {
+        role: 'premium',
+        premiumExpiresAt: expiryDateIso,
+        updatedAt: new Date().toISOString(),
+        paymentHistory: [...existingHistory, paymentRecord]
+      }, { merge: true });
       
-      console.log(`[PAYMENT APPROVAL] VERIFICATION COMPLETE. Final state:`, { 
-        role: finalData?.role,
-        expiresAt: finalData?.premiumExpiresAt,
-        historyLength: finalData?.paymentHistory?.length
-      });
+      console.log(`[PAYMENT APPROVAL] User premium status updated successfully`);
+      return { success: true };
+    } catch (error) {
+      console.error(`[PAYMENT APPROVAL] Error updating user with setDoc:`, error);
       
-      return { 
-        success: true,
-        message: "Premium status updated successfully"
-      };
-    } catch (updateError) {
-      console.error(`[PAYMENT APPROVAL] Error during step-by-step update:`, updateError);
-      
-      // EMERGENCY FALLBACK: Document replacement with minimal fields
-      console.log(`[PAYMENT APPROVAL] EMERGENCY FALLBACK: Trying document replacement with minimal fields`);
-      
+      // Fallback: Try updating fields individually
       try {
-        // Preserve critical user data
-        const userData = userDoc.data() || {};
-        const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
+        console.log(`[PAYMENT APPROVAL] Trying fallback: individual field updates`);
         
-        // Create minimal document with only essential fields
-        await setDoc(userRef, {
-          uid: request.userId,
-          role: 'premium',
-          premiumExpiresAt: expiryDateIso,
-          updatedAt: new Date().toISOString(),
-          // Preserve other critical user fields if they exist
-          email: userData.email || null,
-          username: userData.username || null,
-          displayName: userData.displayName || null,
-          photoURL: userData.photoURL || null,
-          createdAt: userData.createdAt || new Date().toISOString(),
-          paymentHistory: [...existingHistory, paymentRecord]
+        // Update role first (most important)
+        await updateDoc(userRef, { role: 'premium' });
+        console.log(`[PAYMENT APPROVAL] Updated role to premium`);
+        
+        // Update expiry date
+        await updateDoc(userRef, { premiumExpiresAt: expiryDateIso });
+        console.log(`[PAYMENT APPROVAL] Updated premium expiry date`);
+        
+        // Update timestamp
+        await updateDoc(userRef, { updatedAt: new Date().toISOString() });
+        
+        // Update payment history
+        const userData = userDoc.data();
+        const existingHistory = Array.isArray(userData.paymentHistory) ? userData.paymentHistory : [];
+        await updateDoc(userRef, { 
+          paymentHistory: [...existingHistory, paymentRecord] 
         });
         
-        // Final verification
-        const emergencyVerify = await getDoc(userRef);
-        
-        if (emergencyVerify.data()?.role === 'premium') {
-          console.log(`[PAYMENT APPROVAL] EMERGENCY FALLBACK SUCCEEDED`);
-          return { 
-            success: true,
-            message: "Premium status updated using emergency fallback"
-          };
-        } else {
-          throw new Error("Emergency fallback failed verification");
-        }
-      } catch (emergencyError) {
-        console.error(`[PAYMENT APPROVAL] EMERGENCY FALLBACK FAILED:`, emergencyError);
-        throw new Error("All premium status update strategies failed");
+        console.log(`[PAYMENT APPROVAL] All fields updated successfully via fallback`);
+        return { success: true };
+      } catch (updateError) {
+        console.error(`[PAYMENT APPROVAL] Individual updates failed:`, updateError);
+        throw new Error("Failed to update premium status");
       }
     }
   } catch (error) {
-    console.error(`[PAYMENT APPROVAL] CRITICAL ERROR:`, error);
+    console.error(`[PAYMENT APPROVAL] Critical error:`, error);
     return {
       success: false,
-      error: "Critical database update failed after all attempts"
+      error: "Critical database update failed"
     };
   }
 };

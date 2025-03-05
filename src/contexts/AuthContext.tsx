@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from 'firebase/auth';
 import { auth, getUserProfile, getUserSubscription } from '@/lib/firebase';
@@ -44,31 +45,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserProfile(profile as UserProfile);
       console.log("User profile loaded:", profile);
       
-      // Check if user is admin - explicitly set this based on role
+      // Check if user is admin
       const userRole = profile?.role || 'user';
       const isUserAdmin = userRole === 'admin';
       setIsAdmin(isUserAdmin);
       console.log("User admin status:", isUserAdmin, "with role:", userRole);
       
-      // Check premium status - important to refresh this
+      // Check premium status
       const sub = await getUserSubscription(currentUser.uid);
       console.log("Full subscription data:", sub);
       
-      // Determine premium status based on role and expiration date
-      // Premium status is true if role is premium AND expiration date is in the future
-      // OR if role is admin (admins always have premium access)
-      const isPremiumRole = userRole === 'premium' || userRole === 'admin';
-      const isPremiumExpiration = sub.expiresAt ? new Date(sub.expiresAt) > new Date() : false;
-      const isPremium = (isPremiumRole && (isPremiumExpiration || userRole === 'admin'));
-      
+      // Set subscription state
       setSubscription({
-        isPremium: isPremium,
+        isPremium: sub.isPremium || isUserAdmin, // Admin is always premium
         expiresAt: sub.expiresAt,
         role: userRole
       });
       
       console.log("User subscription status set:", {
-        isPremium: isPremium,
+        isPremium: sub.isPremium || isUserAdmin,
         expiresAt: sub.expiresAt,
         role: userRole
       });
