@@ -1,8 +1,8 @@
-
 import { updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
 import { PaymentHistory } from './firebasePayment';
+import { isValidPremium } from './firebaseRoles';
 
 export interface UserProfile {
   email: string;
@@ -94,13 +94,8 @@ export const getUserSubscription = async (userId: string) => {
     console.log("Premium role check:", isPremiumRole);
     console.log("Premium expiration date:", premiumExpiresAt);
     
-    let isPremiumExpiration = false;
-    if (premiumExpiresAt) {
-      const expiryDate = new Date(premiumExpiresAt);
-      const now = new Date();
-      isPremiumExpiration = expiryDate > now;
-      console.log(`Premium expiration check: now=${now.toISOString()}, expires=${expiryDate.toISOString()}, valid=${isPremiumExpiration}`);
-    }
+    // Use the helper function to check premium validity
+    const isPremiumExpiration = isValidPremium(premiumExpiresAt);
     
     // User is premium if role is premium AND expiration date is in the future
     const isPremium = isPremiumRole && isPremiumExpiration;

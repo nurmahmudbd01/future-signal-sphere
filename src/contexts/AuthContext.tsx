@@ -4,6 +4,7 @@ import { User } from 'firebase/auth';
 import { auth, getUserProfile, getUserSubscription } from '@/lib/firebase';
 import { PaymentHistory } from '@/lib/firebasePayment';
 import { UserProfile } from '@/lib/firebaseProfile';
+import { UserRole, isValidPremium } from '@/lib/firebaseRoles';
 
 interface AuthContextType {
   user: User | null;
@@ -12,7 +13,7 @@ interface AuthContextType {
   subscription: {
     isPremium: boolean;
     expiresAt?: string;
-    role?: string;
+    role?: UserRole;
   } | null;
   isAdmin: boolean;
   refreshUserProfile: () => Promise<void>;
@@ -62,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSubscription({
         isPremium,
         expiresAt: sub.expiresAt,
-        role: userRole
+        role: userRole as UserRole
       });
       
       console.log("User subscription status set:", {

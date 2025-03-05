@@ -7,3 +7,4 @@ export * from './firebaseAuth';
 export * from './firebaseProfile';
 export * from './firebasePayment';
 export * from './paymentApproval';
+export * from './firebaseRoles';
