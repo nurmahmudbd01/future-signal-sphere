@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from 'firebase/auth';
 import { auth, getUserProfile, getUserSubscription } from '@/lib/firebase';
@@ -55,15 +54,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const sub = await getUserSubscription(currentUser.uid);
       console.log("Full subscription data:", sub);
       
+      // Admin is always premium regardless of expiration date
+      const isPremium = sub.isPremium || isUserAdmin;
+      
       // Set subscription state
       setSubscription({
-        isPremium: sub.isPremium || isUserAdmin, // Admin is always premium
+        isPremium,
         expiresAt: sub.expiresAt,
         role: userRole
       });
       
       console.log("User subscription status set:", {
-        isPremium: sub.isPremium || isUserAdmin,
+        isPremium,
         expiresAt: sub.expiresAt,
         role: userRole
       });

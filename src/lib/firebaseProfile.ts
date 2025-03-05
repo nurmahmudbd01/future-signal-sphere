@@ -69,7 +69,8 @@ export const getUserSubscription = async (userId: string) => {
       console.log('User document not found for subscription check');
       return {
         isPremium: false,
-        expiresAt: null
+        expiresAt: null,
+        role: 'user'
       };
     }
 
@@ -86,19 +87,25 @@ export const getUserSubscription = async (userId: string) => {
       };
     }
     
-    // Check if user has a premium role
+    // Check if user has a premium role and a valid premium expiration date
     const isPremiumRole = userData.role === 'premium';
-    console.log("User role premium status:", isPremiumRole, "with role:", userData.role);
-    
-    // Check if user has a valid premium expiration date
     const premiumExpiresAt = userData.premiumExpiresAt;
-    const isPremiumExpiration = premiumExpiresAt ? new Date(premiumExpiresAt) > new Date() : false;
-    console.log("Premium expiration status:", isPremiumExpiration, "expires at:", premiumExpiresAt);
+    
+    console.log("Premium role check:", isPremiumRole);
+    console.log("Premium expiration date:", premiumExpiresAt);
+    
+    let isPremiumExpiration = false;
+    if (premiumExpiresAt) {
+      const expiryDate = new Date(premiumExpiresAt);
+      const now = new Date();
+      isPremiumExpiration = expiryDate > now;
+      console.log(`Premium expiration check: now=${now.toISOString()}, expires=${expiryDate.toISOString()}, valid=${isPremiumExpiration}`);
+    }
     
     // User is premium if role is premium AND expiration date is in the future
     const isPremium = isPremiumRole && isPremiumExpiration;
     
-    console.log(`Subscription check result: isPremium=${isPremium}, role=${userData.role}, expiresAt=${premiumExpiresAt || 'N/A'}`);
+    console.log(`Final subscription status: isPremium=${isPremium}, role=${userData.role}, expiresAt=${premiumExpiresAt || 'N/A'}`);
     
     return {
       isPremium,
