@@ -45,8 +45,8 @@ export const approveUserPayment = async (requestId: string, request: PaymentRequ
       // Create a basic user document with premium role
       const newUserData = {
         uid: request.userId,
-        email: request.email || 'unknown@example.com',
-        username: request.name || 'User',
+        email: "user@example.com", // Default placeholder email
+        username: "Premium User", // Default placeholder name
         role: 'premium',
         premiumExpiresAt: expiryDateIso,
         createdAt: new Date().toISOString(),
